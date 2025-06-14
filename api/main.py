@@ -33,7 +33,7 @@ class QueryRequest(BaseModel):
 @app.post("/api/query")
 async def process_query(request: QueryRequest):
     try:
-        response = platform.agent.run(request.query)
+        response = await platform.agent.run(request.query)
         return {"response": response}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
