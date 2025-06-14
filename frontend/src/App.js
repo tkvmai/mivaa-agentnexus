@@ -89,14 +89,20 @@ function App() {
                 Available Files
               </Typography>
               <List>
-                {files.map((file, index) => (
-                  <React.Fragment key={index}>
-                    <ListItem>
-                      <ListItemText primary={file} />
-                    </ListItem>
-                    {index < files.length - 1 && <Divider />}
-                  </React.Fragment>
-                ))}
+                {files.map((fileObj, index) => {
+                  let displayName = fileObj;
+                  if (typeof fileObj === 'object' && fileObj !== null) {
+                    displayName = fileObj.file || fileObj.name || JSON.stringify(fileObj);
+                  }
+                  return (
+                    <React.Fragment key={index}>
+                      <ListItem>
+                        <ListItemText primary={displayName} />
+                      </ListItem>
+                      {index < files.length - 1 && <Divider />}
+                    </React.Fragment>
+                  );
+                })}
               </List>
             </Paper>
 
