@@ -20,7 +20,7 @@ import axios from 'axios';
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import { docco } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = 'http://ddns.i2g.cloud:8000/api';
 
 function App() {
   const [query, setQuery] = useState('');
