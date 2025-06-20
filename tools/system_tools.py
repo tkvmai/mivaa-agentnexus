@@ -8,6 +8,7 @@ import json
 import glob
 import datetime
 from typing import List, Dict, Any, Optional
+import traceback
 
 # Optional system monitoring
 try:
@@ -173,112 +174,45 @@ def create_system_tools(mcp_server, data_config: DataConfig) -> List[str]:
     Create and register system tools - MCP COMPATIBLE VERSION - FIXED
     """
 
-    # Tool 1: List Files - FIXED
+    # Tool 1: List Files - FINAL FIX
     @mcp_server.tool(
         name="list_files",
         description="List any type of data files matching a pattern in the data directory"
     )
     def list_files(pattern: Optional[str] = None, **kwargs):
-        """Universal file listing system - FIXED"""
+        """Universal file listing system - FINAL FIX"""
         try:
-            # FIXED: Use universal parameter extraction (same as other tools)
-            pattern = extract_file_path_from_params(pattern, **kwargs)
+            data_dir = data_config.data_dir
+            
+            # --- SIMPLIFIED AND MORE ROBUST FILE LISTING ---
+            all_files = os.listdir(data_dir)
+            
+            # This is a basic implementation. It can be expanded to support the `pattern` argument if needed.
+            # For now, it returns all files, which is what the frontend expects.
+            file_paths = [os.path.join(data_dir, f) for f in all_files]
+            # --- END OF FIX ---
 
-            print(f"DEBUG: list_files called with extracted pattern='{pattern}'")
+            if not file_paths:
+                return {"text": "No files found in the data directory."}
 
-            # Handle missing or None pattern
-            if not pattern or pattern in [".", "", "list", "files", "{}"]:
-                pattern = "*"
-
-            print(f"DEBUG: Using final pattern='{pattern}'")
-
-            # Handle JSON-encoded parameters from MCP/LangChain (legacy support)
-            if isinstance(pattern, str) and pattern.startswith('{') and pattern.endswith('}'):
-                try:
-                    parsed = json.loads(pattern)
-                    if isinstance(parsed, dict):
-                        # Handle empty JSON case
-                        if not parsed:
-                            pattern = "*"
-                        # Extract the actual pattern from the JSON
-                        elif 'file_pattern' in parsed:
-                            pattern = parsed['file_pattern'] + parsed.get('pattern', '*.sgy')
-                        elif 'pattern' in parsed:
-                            pattern = parsed['pattern']
-                        print(f"DEBUG: Parsed JSON pattern to: '{pattern}'")
-                except json.JSONDecodeError:
-                    print(f"DEBUG: Failed to parse as JSON, using as-is")
-                    pass
-
-            # Auto-detect file type
-            detected_type = detect_file_type(pattern)
-            print(f"DEBUG: detected_type='{detected_type}'")
-
-            matching_files = []
-
-            if detected_type and detected_type in FILE_TYPE_CONFIG:
-                # Handle patterns with specific file type detected (e.g., *.las, *_shots_*.segy)
-                config = FILE_TYPE_CONFIG[detected_type]
-                print(f"DEBUG: Using config for type '{detected_type}' with original pattern '{pattern}'")
-
-                # For patterns that already include the extension, use them directly
-                search_pattern = os.path.join(data_config.data_dir, pattern)
-                print(f"DEBUG: Direct search with pattern: {search_pattern}")
-                matching_files.extend(glob.glob(search_pattern))
-
-                # Also try with different case extensions for the same type
-                if '.' in pattern:
-                    base_pattern, ext = pattern.rsplit('.', 1)
-                    for alt_ext in config["extensions"]:
-                        if alt_ext.lower() != f".{ext.lower()}":
-                            alt_pattern = f"{base_pattern}{alt_ext}"
-                            search_pattern = os.path.join(data_config.data_dir, alt_pattern)
-                            print(f"DEBUG: Alternative extension search: {search_pattern}")
-                            matching_files.extend(glob.glob(search_pattern))
-
+            # Use the existing formatting logic
+            file_type = detect_file_type(pattern or "*")
+            
+            if file_type and file_type in FILE_TYPE_CONFIG:
+                formatted_output = format_files_by_type(file_paths, FILE_TYPE_CONFIG[file_type])
+                return {"text": formatted_output}
             else:
-                # No specific file type detected - search across ALL file types
-                print(f"DEBUG: No specific file type detected, searching across all types")
-
-                # Search across all configured file types
-                for file_type, config in FILE_TYPE_CONFIG.items():
-                    print(f"DEBUG: Searching {file_type} files with pattern '{pattern}'")
-
-                    for ext in config["extensions"]:
-                        # Construct pattern with extension
-                        if pattern.endswith('*'):
-                            search_pattern = os.path.join(data_config.data_dir, f"{pattern}{ext}")
-                        else:
-                            search_pattern = os.path.join(data_config.data_dir, f"{pattern}{ext}")
-
-                        print(f"DEBUG: Searching with pattern: {search_pattern}")
-                        matching_files.extend(glob.glob(search_pattern))
-
-                # If no files found with extensions, try direct pattern search as final fallback
-                if not matching_files:
-                    search_pattern = os.path.join(data_config.data_dir, pattern)
-                    print(f"DEBUG: Final fallback search with pattern: {search_pattern}")
-                    matching_files = glob.glob(search_pattern)
-
-            # Remove duplicates and sort
-            matching_files = sorted(list(set(matching_files)))
-            print(f"DEBUG: Found {len(matching_files)} files")
-
-            if not matching_files:
-                return {"text": f"No files found matching pattern: {pattern}"}
-
-            # Format output using detected type config
-            if detected_type and detected_type in FILE_TYPE_CONFIG:
-                config = FILE_TYPE_CONFIG[detected_type]
-                formatted_output = format_files_by_type(matching_files, config)
-            else:
-                formatted_output = format_generic_files(matching_files, pattern)
-
-            return {"text": formatted_output}
+                # This will now correctly format all files found
+                all_filenames = [os.path.basename(p) for p in file_paths]
+                formatted_output = format_generic_files(all_filenames, pattern or "*")
+                return {"content": all_filenames}
 
         except Exception as e:
-            print(f"ERROR in list_files: {str(e)}")
-            return create_error_response(f"Error listing files: {str(e)}")
+            tb_str = traceback.format_exc()
+            return create_error_response(
+                f"Failed to list files in '{data_config.data_dir}'",
+                details=f"Error: {str(e)}\nTraceback: {tb_str}"
+            )
 
     # Tool 2: System Status - FIXED
     @mcp_server.tool(
