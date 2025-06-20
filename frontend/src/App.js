@@ -39,7 +39,7 @@ import axios from 'axios';
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import { atomOneDark } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 
-const API_BASE_URL = 'http://ddns.i2g.cloud:8000/api';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api';
 
 const segyTools = [
   { tool: 'segy_parser', purpose: 'Comprehensive metadata extraction', example: 'Parse survey_3d.sgy and extract geometry' },
@@ -69,7 +69,6 @@ function App() {
   const [query, setQuery] = useState('');
   const [response, setResponse] = useState('');
   const [loading, setLoading] = useState(false);
-  const [systemStatus, setSystemStatus] = useState(null);
   const [groupedFiles, setGroupedFiles] = useState({});
   const [openCategories, setOpenCategories] = useState({ 'Well Logs': true, 'Seismic': true, 'Other': true });
   const [helpOpen, setHelpOpen] = useState(false);
@@ -78,7 +77,6 @@ function App() {
 
   useEffect(() => {
     fetchFiles();
-    fetchSystemStatus();
   }, []);
 
   const fetchFiles = async () => {
@@ -120,15 +118,6 @@ function App() {
     }
   };
 
-  const fetchSystemStatus = async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/status`);
-      setSystemStatus(response.data);
-    } catch (error) {
-      console.error('Error fetching status:', error);
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!query.trim()) return;
@@ -158,7 +147,7 @@ function App() {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             i2G AGENTIC AI
           </Typography>
-          <IconButton color="inherit" onClick={() => { fetchFiles(); fetchSystemStatus(); }}>
+          <IconButton color="inherit" onClick={fetchFiles}>
             <RefreshIcon />
           </IconButton>
           <IconButton color="inherit" onClick={() => setHelpOpen(true)}>
@@ -178,25 +167,6 @@ function App() {
             height: '100%',
             overflowY: 'auto'
           }}>
-            <Paper sx={{ p: 2, mb: 2, flexShrink: 0 }}>
-              <Typography variant="h6" gutterBottom>
-                System Status
-              </Typography>
-              {systemStatus ? (
-                <Box>
-                  <Typography variant="body2">
-                    Uptime: {systemStatus.uptime_hours?.toFixed(2)} hours
-                  </Typography>
-                  <Typography variant="body2">
-                    Total Queries: {systemStatus.total_queries}
-                  </Typography>
-                  <Typography variant="body2">
-                    System Type: {systemStatus.system_type}
-                  </Typography>
-                </Box>
-              ) : <CircularProgress size={24} />}
-            </Paper>
-
             <Paper sx={{ p: 2, flexGrow: 1, overflowY: 'auto' }}>
               <Typography variant="h6" gutterBottom>
                 Available Files
