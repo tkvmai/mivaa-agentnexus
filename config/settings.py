@@ -72,7 +72,7 @@ class LoggingConfig:
 @dataclass
 class DataConfig:
     """Data Directory Configuration"""
-    data_dir: str = "./data"
+    data_dir: str = "/app/data"
     file_extensions: List[str] = field(default_factory=lambda: [".las", ".LAS", ".sgy", ".segy", ".SGY", ".SEGY"])
     max_files_batch: int = 50
 
@@ -126,7 +126,7 @@ def load_config() -> Config:
     config = Config(
         # Data configuration
         data=DataConfig(
-            data_dir=os.getenv("DATA_DIR", "./data")
+            data_dir=os.getenv("DATA_DIR", "/app/data")
         ),
 
         # A2A configuration
