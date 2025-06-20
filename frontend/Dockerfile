@@ -11,6 +11,10 @@ RUN npm install
 # Copy the rest of the application
 COPY . .
 
+# Set a build-time argument for the API URL
+ARG REACT_APP_API_BASE_URL
+ENV REACT_APP_API_BASE_URL=$REACT_APP_API_BASE_URL
+
 # Build the application
 RUN npm run build
 
