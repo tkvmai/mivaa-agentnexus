@@ -69,17 +69,19 @@ function App() {
   const [query, setQuery] = useState('');
   const [response, setResponse] = useState('');
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState(null);
   const [groupedFiles, setGroupedFiles] = useState({});
   const [openCategories, setOpenCategories] = useState({ 'Well Logs': true, 'Seismic': true, 'Other': true });
   const [helpOpen, setHelpOpen] = useState(false);
+  const [filesLoading, setFilesLoading] = useState(false);
+  const [filesError, setFilesError] = useState(null);
 
   useEffect(() => {
     fetchFiles();
-    fetchStatus();
   }, []);
 
   const fetchFiles = async () => {
+    setFilesLoading(true);
+    setFilesError(null);
     try {
       const res = await axios.get(`${API_BASE_URL}/files`);
       const files = res.data.content || [];
@@ -110,15 +112,9 @@ function App() {
 
     } catch (error) {
       console.error('Error fetching files:', error);
-    }
-  };
-
-  const fetchStatus = async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/status`);
-      setStatus(response.data);
-    } catch (error) {
-      console.error('Error fetching status:', error);
+      setFilesError("Failed to fetch files. Please check API server connection and refresh.");
+    } finally {
+      setFilesLoading(false);
     }
   };
 
@@ -151,7 +147,7 @@ function App() {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             Subsurface Data Management Platform
           </Typography>
-          <IconButton color="inherit" onClick={() => { fetchFiles(); fetchStatus(); }}>
+          <IconButton color="inherit" onClick={fetchFiles}>
             <RefreshIcon />
           </IconButton>
           <IconButton color="inherit" onClick={() => setHelpOpen(true)}>
@@ -194,27 +190,37 @@ function App() {
               <Typography variant="h6" gutterBottom>
                 Available Files
               </Typography>
-               <List component="nav" dense>
-                {Object.entries(groupedFiles).map(([category, files]) => (
-                  (files && files.length > 0) && (
-                    <React.Fragment key={category}>
-                      <ListItem button onClick={() => handleCategoryClick(category)}>
-                        <ListItemText primary={`${category} (${files.length})`} />
-                        {openCategories[category] ? <ExpandLess /> : <ExpandMore />}
-                      </ListItem>
-                      <Collapse in={openCategories[category]} timeout="auto" unmountOnExit>
-                        <List component="div" disablePadding dense>
-                          {files.map((file, index) => (
-                            <ListItem key={index} sx={{ pl: 4 }}>
-                              <ListItemText primary={file} primaryTypographyProps={{ style: { whiteSpace: "normal" } }}/>
-                            </ListItem>
-                          ))}
-                        </List>
-                      </Collapse>
-                    </React.Fragment>
-                  )
-                ))}
-              </List>
+               {filesLoading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                  <CircularProgress />
+                </Box>
+              ) : filesError ? (
+                <Typography color="error">{filesError}</Typography>
+              ) : (Object.values(groupedFiles).every(arr => arr.length === 0)) ? (
+                <Typography variant="body2">No available files found.</Typography>
+              ) : (
+                <List component="nav" dense>
+                  {Object.entries(groupedFiles).map(([category, files]) => (
+                    (files && files.length > 0) && (
+                      <React.Fragment key={category}>
+                        <ListItem button onClick={() => handleCategoryClick(category)}>
+                          <ListItemText primary={`${category} (${files.length})`} />
+                          {openCategories[category] ? <ExpandLess /> : <ExpandMore />}
+                        </ListItem>
+                        <Collapse in={openCategories[category]} timeout="auto" unmountOnExit>
+                          <List component="div" disablePadding dense>
+                            {files.map((file, index) => (
+                              <ListItem key={index} sx={{ pl: 4 }}>
+                                <ListItemText primary={file} primaryTypographyProps={{ style: { whiteSpace: "normal" } }}/>
+                              </ListItem>
+                            ))}
+                          </List>
+                        </Collapse>
+                      </React.Fragment>
+                    )
+                  ))}
+                </List>
+              )}
             </Paper>
           </Grid>
 
