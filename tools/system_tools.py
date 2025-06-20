@@ -202,10 +202,11 @@ def create_system_tools(mcp_server, data_config: DataConfig) -> List[str]:
                 formatted_output = format_files_by_type(file_paths, FILE_TYPE_CONFIG[file_type])
                 return {"text": formatted_output}
             else:
-                # This will now correctly format all files found
                 all_filenames = [os.path.basename(p) for p in file_paths]
-                formatted_output = format_generic_files(all_filenames, pattern or "*")
-                return {"content": all_filenames}
+                # Wrap the content in a dictionary and then dump to a JSON string
+                # This matches the pattern of other tools in the framework.
+                content_payload = {"content": all_filenames}
+                return {"text": json.dumps(content_payload)}
 
         except Exception as e:
             tb_str = traceback.format_exc()

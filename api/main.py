@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import sys
+import json
 from pathlib import Path
 
 # Add project root to path
@@ -51,7 +52,20 @@ async def list_files():
     try:
         mcp_client = platform.get_mcp_server()
         result = mcp_client.call_tool("list_files", "*")
-        return result
+
+        # The tool returns a dictionary with a 'text' key containing a JSON string.
+        # We need to parse this before sending it to the frontend.
+        if 'text' in result and isinstance(result['text'], str):
+            # Parse the JSON string to get the actual content
+            content = json.loads(result['text'])
+            return content  # This will be {"content": [...]}
+        elif 'content' in result:
+             # Handle case where it might already be parsed
+             return result
+        else:
+             # If the format is unexpected, return an empty list for now.
+             return {"content": []}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
