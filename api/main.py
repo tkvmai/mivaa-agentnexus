@@ -24,7 +24,6 @@ app.add_middleware(
 
 # Initialize platform
 config = load_config()
-print(f"INFO: Platform starting. Data directory configured as: '{config.data.data_dir}'")
 platform = SubsurfaceDataPlatform(config)
 platform.initialize()
 
