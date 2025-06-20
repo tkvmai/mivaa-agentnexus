@@ -13,10 +13,7 @@ services:
       - .env  
     restart: unless-stopped
   frontend:
-    build: 
-      context: ./frontend
-      args:
-        - REACT_APP_API_BASE_URL=http://backend:8000/api
+    build: ./frontend
     ports:
       - "3000:3000"
     depends_on:

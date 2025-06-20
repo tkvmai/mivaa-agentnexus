@@ -39,7 +39,7 @@ import axios from 'axios';
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import { atomOneDark } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api';
+const API_BASE_URL = '/api';
 
 const segyTools = [
   { tool: 'segy_parser', purpose: 'Comprehensive metadata extraction', example: 'Parse survey_3d.sgy and extract geometry' },
