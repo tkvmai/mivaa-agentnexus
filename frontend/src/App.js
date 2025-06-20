@@ -69,6 +69,7 @@ function App() {
   const [query, setQuery] = useState('');
   const [response, setResponse] = useState('');
   const [loading, setLoading] = useState(false);
+  const [systemStatus, setSystemStatus] = useState(null);
   const [groupedFiles, setGroupedFiles] = useState({});
   const [openCategories, setOpenCategories] = useState({ 'Well Logs': true, 'Seismic': true, 'Other': true });
   const [helpOpen, setHelpOpen] = useState(false);
@@ -77,6 +78,7 @@ function App() {
 
   useEffect(() => {
     fetchFiles();
+    fetchSystemStatus();
   }, []);
 
   const fetchFiles = async () => {
@@ -118,6 +120,15 @@ function App() {
     }
   };
 
+  const fetchSystemStatus = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/status`);
+      setSystemStatus(response.data);
+    } catch (error) {
+      console.error('Error fetching status:', error);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!query.trim()) return;
@@ -143,11 +154,11 @@ function App() {
       <CssBaseline />
       <AppBar position="static" sx={{ backgroundColor: '#005A9C' }}>
         <Toolbar>
-          <img src="/logo.png" alt="Company Logo" style={{ height: '40px', marginRight: '16px' }} />
+          <img src="/logo.png" alt="Company Logo" style={{ height: '40px', marginRight: '16px', backgroundColor: 'white', padding: '4px', borderRadius: '4px' }} />
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Subsurface Data Management Platform
+            i2G AGENTIC AI
           </Typography>
-          <IconButton color="inherit" onClick={fetchFiles}>
+          <IconButton color="inherit" onClick={() => { fetchFiles(); fetchSystemStatus(); }}>
             <RefreshIcon />
           </IconButton>
           <IconButton color="inherit" onClick={() => setHelpOpen(true)}>
@@ -171,16 +182,16 @@ function App() {
               <Typography variant="h6" gutterBottom>
                 System Status
               </Typography>
-              {status ? (
+              {systemStatus ? (
                 <Box>
                   <Typography variant="body2">
-                    Uptime: {status.uptime_hours?.toFixed(2)} hours
+                    Uptime: {systemStatus.uptime_hours?.toFixed(2)} hours
                   </Typography>
                   <Typography variant="body2">
-                    Total Queries: {status.total_queries}
+                    Total Queries: {systemStatus.total_queries}
                   </Typography>
                   <Typography variant="body2">
-                    System Type: {status.system_type}
+                    System Type: {systemStatus.system_type}
                   </Typography>
                 </Box>
               ) : <CircularProgress size={24} />}
