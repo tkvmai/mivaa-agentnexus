@@ -4,7 +4,7 @@ from pydantic import BaseModel
 import sys
 import json
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict
 import uuid
 
 # Add project root to path
@@ -16,17 +16,22 @@ from main import SubsurfaceDataPlatform
 
 app = FastAPI(title="Subsurface Data Management Platform API")
 
-# Configure CORS
+# In-memory storage for conversation histories
+conversations: Dict[str, List[Dict[str, str]]] = {}
+
+# CORS configuration
+origins = [
+    "http://localhost:3000",
+    "http://ddns.i2g.cloud:3000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# In-memory store for conversations
-conversations = {}
 
 # Initialize platform
 config = load_config()
@@ -139,6 +144,14 @@ async def list_files():
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.on_event("startup")
+async def startup_event():
+    """
+    Initialize platform and conversations
+    """
+    platform.initialize()
+    conversations.clear()
 
 if __name__ == "__main__":
     import uvicorn
