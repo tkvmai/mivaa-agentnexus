@@ -143,34 +143,33 @@ class SubsurfaceDataPlatform:
 
         # Platform components
         self.mcp_server = None
+        self.mcp_client = None
         self.agent = None
         self.initialized = False
         self.start_time = time.time()
 
     def initialize(self):
-        """Initialize all platform components"""
+        """Initializes all platform components"""
+        setup_logging(self.config.logging)
         self.logger.info("Initializing Subsurface Data Platform...")
 
-        try:
-            # Step 1: Initialize MCP Server
-            self._initialize_mcp_server()
+        # self._initialize_mcp_server() # Now runs as a separate service
+        self._initialize_mcp_client()
+        self._initialize_agent()
 
-            # Step 2: Wait for MCP server to be ready
-            self._wait_for_mcp_server()
+        self.logger.info("Platform initialization complete.")
 
-            # Step 3: Create agent (NEW: configurable)
-            self._create_agent()
-
-            self.initialized = True
-            self.logger.info("Platform initialization complete")
-
-        except Exception as e:
-            self.logger.error(f"Platform initialization failed: {e}")
-            raise
+    def initialize_agent_only(self):
+        """Initializes only the components needed for the API server (agent and client)"""
+        setup_logging(self.config.logging)
+        self.logger.info("Initializing Agent components for API server...")
+        self._initialize_mcp_client()
+        self._initialize_agent()
+        self.logger.info("Agent component initialization complete.")
 
     def _initialize_mcp_server(self):
-        """Initialize the MCP server"""
-        self.logger.info("Starting MCP server...")
+        """Initializes and starts the MCP server"""
+        self.logger.info("Initializing MCP server...")
 
         self.mcp_server = MCPServerManager(
             config=self.config.mcp,
@@ -181,16 +180,19 @@ class SubsurfaceDataPlatform:
         self.mcp_server.start()
         self.logger.info("MCP server started")
 
-    def _wait_for_mcp_server(self):
-        """Wait for MCP server to be ready"""
-        self.logger.info("Waiting for MCP server to be ready...")
+    def _initialize_mcp_client(self):
+        """Initialize the MCP client"""
+        self.logger.info("Initializing MCP client...")
+        mcp_url = self.config.mcp.url
+        self.logger.info(f"MCP client connecting to: {mcp_url}")
+        self.mcp_client = MCPClient(mcp_url)
 
-        if not self.mcp_server.wait_ready(timeout=30):
-            raise RuntimeError("MCP server failed to start within 30 seconds")
+        # Test that we can get tools
+        tools_response = self.mcp_client.get_tools()
+        if "error" in tools_response:
+            self.logger.warning(f"Tools not immediately available: {tools_response['error']}")
 
-        self.logger.info("MCP server is ready")
-
-    def _create_agent(self):
+    def _initialize_agent(self):
         """Create agent based on configuration"""
         self.logger.info(f"Creating agent using {AGENT_TYPE} implementation...")
 

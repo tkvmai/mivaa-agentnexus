@@ -150,7 +150,17 @@ async def startup_event():
     """
     Initialize platform and conversations
     """
-    platform.initialize()
+    # platform.initialize() # This is now handled by the dedicated MCP server
+    conversations.clear()
+    # The main platform object, which holds the agent, still needs to be initialized.
+    # We will ensure it's initialized without starting the sub-servers.
+    platform.initialize_agent_only()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """
+    Clean up resources
+    """
     conversations.clear()
 
 if __name__ == "__main__":

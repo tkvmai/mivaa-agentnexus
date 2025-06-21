@@ -12,6 +12,20 @@ services:
     env_file:
       - .env  
     restart: unless-stopped
+
+  mcp-server:
+    build: .
+    command: python mcp.py
+    ports:
+      - "7001:7001"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - PYTHONUNBUFFERED=1
+    env_file:
+      - .env
+    restart: unless-stopped
+
   frontend:
     build:
       context: ./frontend
