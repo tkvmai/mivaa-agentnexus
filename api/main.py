@@ -125,7 +125,9 @@ async def process_query(query_request: QueryRequest, request: Request):
     if not query:
         raise HTTPException(status_code=400, detail="Query cannot be empty")
 
-    history = conversations.get(conversation_id, {}).get("history", [])
+    # Get a copy of the history to prevent mutation side-effects
+    previous_history = conversations.get(conversation_id, {}).get("history", [])
+    history = previous_history.copy()
     
     # Add the current user query to the history for this turn
     history.append({"role": "user", "content": query})
