@@ -249,6 +249,11 @@ function App() {
       setOpenSessionGroups(prev => ({ ...prev, [groupName]: !prev[groupName] }));
   };
 
+  const drawerProps = {
+    filesLoading, filesError, groupedFiles, handleCategoryClick, openCategories,
+    groupedSessions, handleSessionGroupClick, openSessionGroups, handleSessionClick, selectedSessionId
+  };
+
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
