@@ -128,11 +128,29 @@ async def get_status(request: Request):
 @app.get("/api/files")
 async def list_files():
     try:
+        # Check if platform and MCP client are available
+        if not platform:
+            raise HTTPException(status_code=500, detail="Platform not initialized")
+            
         if not platform.mcp_client:
             raise HTTPException(status_code=500, detail="MCP Client not initialized")
             
         mcp_client = platform.mcp_client
+        
+        # Test the connection first
+        try:
+            tools_response = mcp_client.get_tools()
+            if "error" in tools_response:
+                raise HTTPException(status_code=500, detail=f"MCP server connection failed: {tools_response['error']}")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"MCP server not accessible: {str(e)}")
+        
+        # Now try to list files
         raw_result = mcp_client.call_tool("list_files", "*")
+        
+        # Check if the tool call failed
+        if isinstance(raw_result, dict) and "error" in raw_result:
+            raise HTTPException(status_code=500, detail=f"list_files tool failed: {raw_result['error']}")
         
         # Use the robust unwrapping function to get the clean content
         final_content = unwrap_mcp_response(raw_result)
@@ -144,8 +162,14 @@ async def list_files():
             # If unwrapping fails to find the expected dict, return a default
             return {"content": []}
 
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Unexpected error in list_files: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 @app.on_event("startup")
 async def startup_event():

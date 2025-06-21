@@ -181,16 +181,42 @@ class SubsurfaceDataPlatform:
         self.logger.info("MCP server started")
 
     def _initialize_mcp_client(self):
-        """Initialize the MCP client"""
+        """Initialize the MCP client with retry logic"""
         self.logger.info("Initializing MCP client...")
         mcp_url = self.config.mcp.url
         self.logger.info(f"MCP client connecting to: {mcp_url}")
+        
+        # Create the client
         self.mcp_client = MCPClient(mcp_url)
-
-        # Test that we can get tools
-        tools_response = self.mcp_client.get_tools()
-        if "error" in tools_response:
-            self.logger.warning(f"Tools not immediately available: {tools_response['error']}")
+        
+        # Retry logic for connecting to the separate MCP server
+        max_retries = 5
+        retry_delay = 2
+        
+        for attempt in range(max_retries):
+            try:
+                self.logger.info(f"Attempting to connect to MCP server (attempt {attempt + 1}/{max_retries})...")
+                
+                # Test that we can get tools
+                tools_response = self.mcp_client.get_tools()
+                
+                if "error" not in tools_response:
+                    self.logger.info("MCP client connected successfully!")
+                    return
+                else:
+                    self.logger.warning(f"Tools not immediately available: {tools_response['error']}")
+                    
+            except Exception as e:
+                self.logger.warning(f"Connection attempt {attempt + 1} failed: {e}")
+            
+            if attempt < max_retries - 1:
+                self.logger.info(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+                retry_delay *= 1.5  # Exponential backoff
+        
+        # If we get here, all retries failed
+        self.logger.error("Failed to connect to MCP server after all retries")
+        self.logger.warning("MCP client created but connection may be unreliable")
 
     def _initialize_agent(self):
         """Create agent based on configuration"""
