@@ -94,16 +94,18 @@ async def process_query(query_request: QueryRequest, request: Request):
 
     history = conversations.get(conversation_id, [])
     
-    # We pass the existing history to the agent, the new query is the main input
+    # Add the current user query to the history for this turn
+    history.append({"role": "user", "content": query})
+
     try:
+        # The agent now receives the complete history, including the latest query
         response_text = await agent.run(
             query=query,
-            chat_history=history, # Pass the history *before* the current query
+            chat_history=history, # History now includes the current query
             conversation_id=conversation_id
         )
 
-        # Update history with the user query and the agent's response for the next turn
-        history.append({"role": "user", "content": query})
+        # Update history with the agent's response for the next turn
         history.append({"role": "assistant", "content": response_text})
 
         if not conversation_id:
