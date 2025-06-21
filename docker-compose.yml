@@ -12,6 +12,9 @@ services:
     env_file:
       - .env  
     restart: unless-stopped
+    depends_on:
+      mcp-server:
+        condition: service_healthy
 
   mcp-server:
     build: .
@@ -25,6 +28,12 @@ services:
     env_file:
       - .env
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7001/tools"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   frontend:
     build:
