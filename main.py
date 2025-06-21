@@ -320,25 +320,14 @@ class SubsurfaceDataPlatform:
                 else:
                     return "Unknown Agent"
 
-            def run(self, query):
-                """Run method for MetaAgent compatibility"""
-                self.stats["total_queries"] += 1
-                self.stats["uptime_hours"] = (time.time() - self.platform.start_time) / 3600
-
-                try:
-                    if hasattr(self.agent, 'run'):
-                        return self.agent.run(query)
-                    elif hasattr(self.agent, 'execute_query'):
-                        return self.agent.execute_query(query)
-                    else:
-                        return str(self.agent(query))
-                except Exception as e:
-                    self.platform.logger.error(f"Wrapped agent error: {e}")
-                    raise e
+            def run(self, query=None, chat_history=None):
+                """Pass through to the wrapped agent's run method."""
+                self.platform.logger.debug("AgentWrapper passing call to wrapped agent...")
+                return self.agent.run(query=query, chat_history=chat_history)
 
             def get_stats(self):
-                """Get comprehensive stats - IMPROVED VERSION"""
-                # Update wrapper stats
+                """Get statistics from the platform and agent"""
+                self.platform.logger.debug("AgentWrapper getting stats...")
                 self.stats["uptime_hours"] = (time.time() - self.platform.start_time) / 3600
 
                 if hasattr(self.agent, 'get_stats'):
