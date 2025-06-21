@@ -80,15 +80,8 @@ function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [currentConversationId, setCurrentConversationId] = useState(null);
 
-  const [sessions, setSessions] = useState([
-    { id: 'sess_1', title: 'Well data research request', timestamp: '2024-11-29T10:33:49Z', agent: 'Production Agent', history: [{role: 'user', content: 'Find me well data for the North Sea'}, {role: 'assistant', content: 'Here is the well data research for the North Sea...'}] },
-    { id: 'sess_2', title: 'Extract well production data', timestamp: '2024-11-27T12:13:54Z', agent: 'Production Agent', history: [{role: 'user', content: 'Extract production data from well_1.las'}, {role: 'assistant', content: 'Production data extracted successfully.'}]},
-    { id: 'sess_3', title: 'monthly production plot', timestamp: '2024-11-25T11:22:37Z', agent: 'Production Agent', history: [{role: 'user', content: 'Create a monthly production plot for all wells.'}, {role: 'assistant', content: 'Here is the generated monthly plot.'}, {role: 'user', content: 'Can you change the color to blue?'}, {role: 'assistant', content: 'Of course, here is the plot in blue.'}] },
-    { id: 'sess_4', title: 'Retrieve production data', timestamp: '2024-11-22T13:20:18Z', agent: 'Production Agent', history: [{role: 'user', content: 'Retrieve production data for well_2.las'}, {role: 'assistant', content: 'Data retrieved.'}]},
-    { id: 'sess_5', title: 'Retrieve well report details', timestamp: '2024-11-22T12:07:37Z', agent: 'Production Agent', history: [{role: 'user', content: 'Get well report details for well_3.las'}, {role: 'assistant', content: 'Report details are as follows...'}]},
-    { id: 'sess_6', title: 'Analyze production data', timestamp: '2024-10-21T14:21:24Z', agent: 'Production Agent', history: [{role: 'user', content: 'Analyze production data in file xyz'}, {role: 'assistant', content: 'Analysis complete.'}]},
-  ]);
-  const [selectedSessionId, setSelectedSessionId] = useState('sess_3');
+  const [sessions, setSessions] = useState([]);
+  const [selectedSessionId, setSelectedSessionId] = useState(null);
   const [openSessionGroups, setOpenSessionGroups] = useState({});
 
   const startNewChat = () => {
@@ -219,8 +212,33 @@ function App() {
       };
       const result = await axios.post(`${API_BASE_URL}/query`, payload);
       
-      setCurrentConversationId(result.data.conversation_id);
-      setHistory(result.data.history);
+      const newConversationId = result.data.conversation_id;
+      const newHistory = result.data.history;
+
+      setCurrentConversationId(newConversationId);
+      setHistory(newHistory);
+
+      // Update or create session
+      const existingSessionIndex = sessions.findIndex(s => s.id === newConversationId);
+
+      if (existingSessionIndex > -1) {
+        // Update existing session
+        const updatedSessions = [...sessions];
+        updatedSessions[existingSessionIndex].history = newHistory;
+        updatedSessions[existingSessionIndex].timestamp = new Date().toISOString();
+        setSessions(updatedSessions);
+      } else {
+        // Create a new session for the new conversation
+        const newSession = {
+          id: newConversationId,
+          title: newHistory[0]?.content || 'New Session',
+          timestamp: new Date().toISOString(),
+          agent: 'Production Agent', // This can be made dynamic later
+          history: newHistory,
+        };
+        setSessions(prevSessions => [newSession, ...prevSessions]);
+        setSelectedSessionId(newConversationId);
+      }
 
     } catch (error) {
       const errorMessage = `Error: ${error.response?.data?.detail || error.message}`;

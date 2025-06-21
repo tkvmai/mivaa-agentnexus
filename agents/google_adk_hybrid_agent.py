@@ -621,19 +621,64 @@ class ToolExecutingHybridAgent:
         return False
 
     def _format_json_response(self, json_str: str) -> str:
-        """Convert JSON response to human-readable format"""
+        """Convert JSON response to human-readable format, handling nested JSON."""
         try:
             data = json.loads(json_str)
+
+            # Handle cases where the real JSON is nested inside a 'text' key
+            if isinstance(data, dict) and 'text' in data and isinstance(data['text'], str):
+                try:
+                    return self._format_json_response(data['text'])
+                except json.JSONDecodeError:
+                    pass  # Fall through if inner text is not JSON
+
             if isinstance(data, dict):
+                # Check for specific report types and format them
+                if 'file_info' in data and 'curve_issues' in data:
+                    return self._format_las_qc(data)
                 if 'file_processed' in data and 'survey_type' in data:
                     return self._format_segy_analysis(data)
                 elif 'quality_rating' in data:
                     return self._format_quality_analysis(data)
                 elif 'well_name' in data:
                     return self._format_las_analysis(data)
+
+            # If no special format applies, pretty-print the JSON
             return json.dumps(data, indent=2)
         except json.JSONDecodeError:
             return json_str
+
+    def _format_las_qc(self, data: Dict[str, Any]) -> str:
+        """Format LAS quality control results into a readable report."""
+        output = []
+        
+        file_info = data.get('file_info', {})
+        output.append("## LAS File Quality Control Report")
+        output.append(f"**File:** {file_info.get('filename', 'N/A')}")
+        output.append("\n### File Summary")
+        output.append(f"- **Parsing Method:** {file_info.get('parsing_method', 'N/A')}")
+        output.append(f"- **Curve Count:** {file_info.get('curve_count', 'N/A')}")
+        output.append(f"- **Total Data Points:** {file_info.get('data_points', 'N/A'):,}")
+        
+        issues = data.get('issues', [])
+        if issues:
+            output.append("\n### General Issues")
+            for issue in issues:
+                output.append(f"- {issue.get('severity', 'info').upper()}: {issue.get('message', '')}")
+        
+        curve_issues = data.get('curve_issues', {})
+        if curve_issues:
+            output.append("\n### Curve-Specific Issues")
+            for curve, issue_list in curve_issues.items():
+                if issue_list:
+                    output.append(f"- **{curve}:**")
+                    for issue in issue_list:
+                        output.append(f"  - {issue.get('severity', 'info').capitalize()}: {issue.get('message', '')}")
+
+        if not issues and not curve_issues:
+            output.append("\n**No quality issues detected.**")
+            
+        return "\n".join(output)
 
     def _format_segy_analysis(self, data: Dict[str, Any]) -> str:
         """Format SEG-Y analysis results"""
