@@ -52,12 +52,14 @@ async def list_files():
     try:
         mcp_client = platform.get_mcp_server()
         result = mcp_client.call_tool("list_files", "*")
+        print(f"DEBUG: Raw result from tool: {result}") # Log raw tool output
 
         # The tool returns a dictionary with a 'text' key containing a JSON string.
         # We need to parse this before sending it to the frontend.
         if 'text' in result and isinstance(result['text'], str):
             # Parse the JSON string to get the actual content
             content = json.loads(result['text'])
+            print(f"DEBUG: Parsed content to be returned: {content}") # Log final content
             return content  # This will be {"content": [...]}
         elif 'content' in result:
              # Handle case where it might already be parsed
