@@ -607,17 +607,17 @@ class ToolExecutingHybridAgent:
             return f"An error occurred: {e}"
 
     def _format_agent_response(self, response: str) -> str:
-        """Format agent response for better readability"""
+        """Format agent response for better readability."""
         if self._is_json_response(response):
             return self._format_json_response(response)
         return response
 
     def _is_json_response(self, response: str) -> bool:
-        """Check if response is raw JSON"""
+        """Check if response is raw JSON."""
         if isinstance(response, str):
             stripped = response.strip()
             return (stripped.startswith('{') and stripped.endswith('}')) or \
-                (stripped.startswith('[') and stripped.endswith(']'))
+                   (stripped.startswith('[') and stripped.endswith(']'))
         return False
 
     def _format_json_response(self, json_str: str) -> str:
@@ -628,6 +628,7 @@ class ToolExecutingHybridAgent:
             # Handle cases where the real JSON is nested inside a 'text' key
             if isinstance(data, dict) and 'text' in data and isinstance(data['text'], str):
                 try:
+                    # Recursively call to handle potentially nested JSON
                     return self._format_json_response(data['text'])
                 except json.JSONDecodeError:
                     pass  # Fall through if inner text is not JSON
@@ -638,7 +639,7 @@ class ToolExecutingHybridAgent:
                     return self._format_las_qc(data)
                 if 'file_processed' in data and 'survey_type' in data:
                     return self._format_segy_analysis(data)
-                elif 'quality_rating' in data:
+                elif 'quality_rating' in data and not ('file_processed' in data):
                     return self._format_quality_analysis(data)
                 elif 'well_name' in data:
                     return self._format_las_analysis(data)
@@ -651,7 +652,6 @@ class ToolExecutingHybridAgent:
     def _format_las_qc(self, data: Dict[str, Any]) -> str:
         """Format LAS quality control results into a readable report."""
         output = []
-        
         file_info = data.get('file_info', {})
         output.append("## LAS File Quality Control Report")
         output.append(f"**File:** {file_info.get('filename', 'N/A')}")
@@ -659,13 +659,13 @@ class ToolExecutingHybridAgent:
         output.append(f"- **Parsing Method:** {file_info.get('parsing_method', 'N/A')}")
         output.append(f"- **Curve Count:** {file_info.get('curve_count', 'N/A')}")
         output.append(f"- **Total Data Points:** {file_info.get('data_points', 'N/A'):,}")
-        
+
         issues = data.get('issues', [])
         if issues:
             output.append("\n### General Issues")
             for issue in issues:
                 output.append(f"- {issue.get('severity', 'info').upper()}: {issue.get('message', '')}")
-        
+
         curve_issues = data.get('curve_issues', {})
         if curve_issues:
             output.append("\n### Curve-Specific Issues")
@@ -677,11 +677,11 @@ class ToolExecutingHybridAgent:
 
         if not issues and not curve_issues:
             output.append("\n**No quality issues detected.**")
-            
+
         return "\n".join(output)
 
     def _format_segy_analysis(self, data: Dict[str, Any]) -> str:
-        """Format SEG-Y analysis results"""
+        """Format SEG-Y analysis results."""
         return f"""
 ## SEG-Y Analysis Results
 **File:** {data.get('file_processed', 'Unknown')}
@@ -701,7 +701,7 @@ class ToolExecutingHybridAgent:
 """
 
     def _format_quality_analysis(self, data: Dict[str, Any]) -> str:
-        """Format quality analysis results"""
+        """Format quality analysis results."""
         return f"""
 ## Quality Analysis Results
 **Overall Rating:** {data.get('quality_rating', 'Unknown')}
@@ -714,7 +714,7 @@ class ToolExecutingHybridAgent:
 """
 
     def _format_las_analysis(self, data: Dict[str, Any]) -> str:
-        """Format LAS analysis results"""
+        """Format LAS analysis results."""
         return f"""
 ## Well Log Analysis Results
 **Well:** {data.get('well_name', 'Unknown')}
@@ -728,18 +728,18 @@ class ToolExecutingHybridAgent:
 """
 
     def _format_quality_issues(self, quality_data: Dict[str, Any]) -> str:
-        """Format quality issues and warnings"""
+        """Format quality issues and warnings."""
         output = []
         issues = quality_data.get('issues', [])
         if issues:
             output.append("**Issues Found:**")
             for issue in issues:
-                output.append(f"- {issue}")
+                output.append(f"- {issue.get('message', str(issue))}")
         warnings = quality_data.get('warnings', [])
         if warnings:
             output.append("**Warnings:**")
             for warning in warnings:
-                output.append(f"- {warning}")
+                output.append(f"- {warning.get('message', str(warning))}")
         if not issues and not warnings:
             output.append("No quality issues detected.")
         return chr(10).join(output)
