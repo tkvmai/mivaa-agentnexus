@@ -31,6 +31,33 @@ platform.initialize()
 class QueryRequest(BaseModel):
     query: str
 
+def unwrap_mcp_response(data):
+    """
+    Recursively unwraps the deeply nested response from the MCP server
+    until the actual content is found.
+    """
+    # Keep unwrapping as long as 'data' is a string that looks like JSON
+    current_data = data
+    while isinstance(current_data, str):
+        try:
+            current_data = json.loads(current_data)
+        except json.JSONDecodeError:
+            # If it's not a JSON string, we can't unwrap it further
+            return current_data
+
+    if isinstance(current_data, dict):
+        if 'content' in current_data and isinstance(current_data['content'], list) and current_data['content'] and isinstance(current_data['content'][0], dict):
+             # Outer wrapper: {'content': [{'type': 'text', ...}]}
+            return unwrap_mcp_response(current_data['content'][0])
+        elif 'text' in current_data:
+             # Inner wrapper: {'text': '...'}
+            return unwrap_mcp_response(current_data['text'])
+        elif 'content' in current_data:
+            # Final payload: {'content': [...]}
+            return current_data
+
+    return current_data # Fallback for unexpected formats
+
 @app.post("/api/query")
 async def process_query(request: QueryRequest):
     try:
@@ -47,28 +74,6 @@ async def get_status():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-def unwrap_mcp_response(data):
-    """
-    Recursively unwraps the deeply nested response from the MCP server
-    until the actual content is found.
-    """
-    if isinstance(data, dict):
-        if 'content' in data and isinstance(data['content'], list) and data['content']:
-             # This is the common case for the outer wrapper
-            return unwrap_mcp_response(data['content'][0])
-        elif 'text' in data and isinstance(data['text'], str):
-             # This handles the inner text payload
-            try:
-                # Try to parse the text as JSON and recurse
-                return unwrap_mcp_response(json.loads(data['text']))
-            except json.JSONDecodeError:
-                 # If it's not JSON, it might be the final value
-                 return data['text']
-        elif 'content' in data:
-            # This handles the final payload, e.g. {"content": [...]}
-            return data
-    return data # Fallback for unexpected formats
-
 @app.get("/api/files")
 async def list_files():
     try:
@@ -80,10 +85,8 @@ async def list_files():
         
         # Ensure the final result is in the format the frontend expects
         if isinstance(final_content, dict) and 'content' in final_content:
-            print(f"FINAL CHECK: Sending content to frontend: {final_content}") # Final check
             return final_content
         else:
-            print(f"FINAL CHECK: Unwrapping failed, sending empty list.") # Final check
             # If unwrapping fails to find the expected dict, return a default
             return {"content": []}
 
