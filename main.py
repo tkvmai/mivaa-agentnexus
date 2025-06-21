@@ -196,16 +196,17 @@ class SubsurfaceDataPlatform:
         """Create agent based on configuration"""
         self.logger.info(f"Creating agent using {AGENT_TYPE} implementation...")
 
-        # Create MCP client for the agent
-        mcp_client = MCPClient(self.mcp_server.url)
+        if not self.mcp_client:
+            self.logger.error("MCP client not initialized. Cannot create agent.")
+            raise RuntimeError("MCP client must be initialized before the agent.")
 
-        # Test that we can get tools
-        tools_response = mcp_client.get_tools()
+        # Test that we can get tools via the existing client
+        tools_response = self.mcp_client.get_tools()
         if "error" in tools_response:
-            self.logger.warning(f"Tools not immediately available: {tools_response['error']}")
+            self.logger.warning(f"Tools not available via client: {tools_response['error']}")
 
         # NEW: Agent creation with fallback support
-        self.agent = self._create_agent_with_fallback(mcp_client, tools_response)
+        self.agent = self._create_agent_with_fallback(self.mcp_client, tools_response)
 
         # Wrap agent to add compatibility methods if needed
         if not hasattr(self.agent, 'get_stats'):
