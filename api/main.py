@@ -146,7 +146,11 @@ async def process_query(query_request: QueryRequest, request: Request):
         }
         save_sessions() # Save after every update
         
-        return {"history": history, "conversation_id": conversation_id}
+        return QueryResponse(
+            response=response_text,
+            conversation_id=conversation_id,
+            history=history
+        )
         
     except Exception as e:
         import logging

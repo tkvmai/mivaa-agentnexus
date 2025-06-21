@@ -224,10 +224,13 @@ function App() {
     try {
       const payload = { query: query, conversation_id: currentConversationId };
       const result = await axios.post(`${API_BASE_URL}/query`, payload);
+      
       const newConversationId = result.data.conversation_id;
       const newHistory = result.data.history;
+
       setCurrentConversationId(newConversationId);
       setHistory(newHistory);
+      
       const existingSessionIndex = sessions.findIndex(s => s.id === newConversationId);
       if (existingSessionIndex > -1) {
         const updatedSessions = [...sessions];
