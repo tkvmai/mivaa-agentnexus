@@ -444,6 +444,10 @@ Available tools: list_files, system_status, health_check, directory_info, las_pa
         import re
 
         query_lower = query.lower()
+        
+        # Try to extract a filename
+        file_match = re.search(r'([a-zA-Z0-9_\-]+\.(las|sgy|segy))', query_lower)
+        file_path = file_match.group(1) if file_match else "no_file_found"
 
         # Simple tool routing based on keywords
         if "list" in query_lower or "show" in query_lower:
