@@ -4,8 +4,10 @@ from pydantic import BaseModel
 import sys
 import json
 from pathlib import Path
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 import uuid
+import atexit
+from datetime import datetime, timedelta
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
@@ -14,10 +16,41 @@ sys.path.insert(0, str(project_root))
 from config.settings import Config, load_config
 from main import SubsurfaceDataPlatform
 
+SESSIONS_FILE = project_root / "data" / "sessions.json"
+
 app = FastAPI(title="Subsurface Data Management Platform API")
 
-# In-memory storage for conversation histories
-conversations: Dict[str, List[Dict[str, str]]] = {}
+# New structure: { "convo_id": {"history": [...], "last_updated": "iso_timestamp"}, ... }
+conversations: Dict[str, Dict[str, Any]] = {}
+
+def load_sessions():
+    global conversations
+    if SESSIONS_FILE.exists():
+        with open(SESSIONS_FILE, 'r') as f:
+            try:
+                content = f.read()
+                if content:
+                    loaded_conversations = json.loads(content)
+                    seven_days_ago = datetime.utcnow() - timedelta(days=7)
+                    
+                    # Filter out sessions that have not been updated in the last 7 days
+                    conversations = {
+                        cid: cdata for cid, cdata in loaded_conversations.items()
+                        if "last_updated" in cdata and datetime.fromisoformat(cdata["last_updated"]) > seven_days_ago
+                    }
+                    
+                    # After filtering, save the cleaned-up data back to the file
+                    save_sessions()
+                else:
+                    conversations = {}
+            except (json.JSONDecodeError, TypeError):
+                conversations = {}
+    else:
+        conversations = {}
+
+def save_sessions():
+    with open(SESSIONS_FILE, 'w') as f:
+        json.dump(conversations, f, indent=4)
 
 # CORS configuration
 origins = [
@@ -92,7 +125,7 @@ async def process_query(query_request: QueryRequest, request: Request):
     if not query:
         raise HTTPException(status_code=400, detail="Query cannot be empty")
 
-    history = conversations.get(conversation_id, [])
+    history = conversations.get(conversation_id, {}).get("history", [])
     
     # Add the current user query to the history for this turn
     history.append({"role": "user", "content": query})
@@ -107,7 +140,11 @@ async def process_query(query_request: QueryRequest, request: Request):
         if not conversation_id:
             conversation_id = str(uuid.uuid4())
         
-        conversations[conversation_id] = history
+        conversations[conversation_id] = {
+            "history": history,
+            "last_updated": datetime.utcnow().isoformat()
+        }
+        save_sessions() # Save after every update
         
         return {"history": history, "conversation_id": conversation_id}
         
@@ -116,6 +153,25 @@ async def process_query(query_request: QueryRequest, request: Request):
         logger = logging.getLogger(__name__)
         logger.error(f"Error processing query for conversation {conversation_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred while processing the query.")
+
+@app.get("/api/sessions")
+async def get_sessions():
+    """
+    Returns all active sessions, formatted for the frontend.
+    """
+    session_list = []
+    for cid, cdata in conversations.items():
+        history = cdata.get("history", [])
+        if history:
+            session_list.append({
+                "id": cid,
+                "title": history[0].get("content", "New Session"),
+                "timestamp": cdata.get("last_updated"),
+                "history": history
+            })
+    # Sort by most recently updated
+    session_list.sort(key=lambda s: s["timestamp"], reverse=True)
+    return session_list
 
 @app.get("/api/status")
 async def get_status(request: Request):
@@ -176,7 +232,7 @@ async def startup_event():
     """
     Initialize platform and conversations
     """
-    conversations.clear()
+    load_sessions()
     # The main platform object, which holds the agent, still needs to be initialized.
     # We will ensure it's initialized without starting the sub-servers.
     platform.initialize_agent_only()
@@ -193,7 +249,9 @@ async def shutdown_event():
     """
     Clean up resources
     """
-    conversations.clear()
+    save_sessions()
+
+atexit.register(save_sessions)
 
 if __name__ == "__main__":
     import uvicorn

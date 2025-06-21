@@ -150,12 +150,23 @@ function App() {
 
   useEffect(() => {
     fetchFiles();
+    fetchSessions();
     const initialOpenState = {};
     Object.keys(groupedSessions).forEach(group => {
         initialOpenState[group] = true;
     });
     setOpenSessionGroups(initialOpenState);
   }, []);
+
+  const fetchSessions = async () => {
+    try {
+      const res = await axios.get(`${API_BASE_URL}/sessions`);
+      setSessions(res.data || []);
+    } catch (error) {
+      console.error('Error fetching sessions:', error);
+      // Optionally set an error state for sessions
+    }
+  };
 
   const fetchFiles = async () => {
     setFilesLoading(true);
