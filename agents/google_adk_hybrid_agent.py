@@ -472,8 +472,8 @@ Available tools: list_files, system_status, health_check, directory_info, las_pa
         else:
             return f"I encountered a technical issue with Google ADK. Try asking for 'list files' or 'system status'."
 
-    def invoke(self, input_dict: Dict[str, str]) -> Dict[str, str]:
-        """Main invoke method"""
+    async def invoke(self, input_dict: Dict[str, str]) -> Dict[str, str]:
+        """Main invoke method - now async to work with FastAPI"""
         self.stats["total_invocations"] += 1
 
         try:
@@ -483,8 +483,8 @@ Available tools: list_files, system_status, health_check, directory_info, las_pa
 
             self.logger.info(f"Processing query: {query[:100]}...")
 
-            # Execute with Google ADK tool execution
-            response = asyncio.run(self._execute_with_google_adk(query))
+            # Execute with Google ADK tool execution - no asyncio.run() needed
+            response = await self._execute_with_google_adk(query)
 
             self.stats["successful_invocations"] += 1
             return {"output": response}
@@ -570,8 +570,8 @@ class ToolExecutingHybridAgent:
             "system_type": "Google ADK Agent with Tool Execution"
         }
 
-    def run(self, query: str) -> str:
-        """Process query with tool execution"""
+    async def run(self, query: str) -> str:
+        """Process query with tool execution - now async"""
         self.stats["total_queries"] += 1
         self.logger.debug(f"Processing: {query[:100]}...")
 
@@ -587,7 +587,7 @@ class ToolExecutingHybridAgent:
 
         # Let the agent execute tools
         try:
-            result = self.agent_executor.invoke({"input": query})
+            result = await self.agent_executor.invoke({"input": query})
 
             if isinstance(result, dict):
                 output = result.get("output", str(result))

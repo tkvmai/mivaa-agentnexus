@@ -98,8 +98,8 @@ async def process_query(query_request: QueryRequest, request: Request):
     history.append({"role": "user", "content": query})
 
     try:
-        # Call the agent with the original simple format (no session parameters)
-        response_text = agent.run(query)
+        # Call the agent with the original simple format (no session parameters) - now async
+        response_text = await agent.run(query)
 
         # Update history with the agent's response for the next turn
         history.append({"role": "assistant", "content": response_text})
