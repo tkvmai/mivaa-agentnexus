@@ -47,7 +47,6 @@ import {
 import axios from 'axios';
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import { atomOneDark } from 'react-syntax-highlighter/dist/esm/styles/hljs';
-import DrawerContent from './DrawerContent';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api';
 
@@ -84,14 +83,20 @@ function App() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [filesLoading, setFilesLoading] = useState(false);
   const [filesError, setFilesError] = useState(null);
-  const [panelWidth, setPanelWidth] = useState(400); // Initial width for the left panel
+  const [panelWidth, setPanelWidth] = useState(400);
   const [isDragging, setIsDragging] = useState(false);
   const [currentConversationId, setCurrentConversationId] = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
-
   const [sessions, setSessions] = useState([]);
   const [selectedSessionId, setSelectedSessionId] = useState(null);
   const [openSessionGroups, setOpenSessionGroups] = useState({});
+
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  const handleDrawerToggle = () => {
+    setMobileOpen(!mobileOpen);
+  };
 
   const startNewChat = () => {
     setSelectedSessionId(null);
@@ -109,7 +114,7 @@ function App() {
       const lastUserQuery = session.history.filter(m => m.role === 'user').slice(-1)[0]?.content || '';
       setQuery(lastUserQuery);
       if (isMobile) {
-        setMobileOpen(false); // Close drawer on session selection
+        setMobileOpen(false);
       }
     }
   };
@@ -118,9 +123,7 @@ function App() {
     return sessionsToGroup.reduce((acc, session) => {
       const date = new Date(session.timestamp);
       const monthYear = date.toLocaleString('default', { month: 'long', year: 'numeric' });
-      if (!acc[monthYear]) {
-        acc[monthYear] = [];
-      }
+      if (!acc[monthYear]) acc[monthYear] = [];
       acc[monthYear].push(session);
       return acc;
     }, {});
@@ -129,14 +132,7 @@ function App() {
   const groupedSessions = groupSessionsByMonth(sessions);
 
   const handleSessionGroupClick = (groupName) => {
-      setOpenSessionGroups(prev => ({ ...prev, [groupName]: !prev[groupName] }));
-  };
-
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-
-  const handleDrawerToggle = () => {
-    setMobileOpen(!mobileOpen);
+    setOpenSessionGroups(prev => ({ ...prev, [groupName]: !prev[groupName] }));
   };
 
   const handleMouseDown = useCallback((e) => {
@@ -150,7 +146,6 @@ function App() {
 
   const handleMouseMove = useCallback((e) => {
     if (isDragging) {
-      // Set constraints for the panel width
       const newWidth = Math.max(250, Math.min(e.clientX, window.innerWidth * 0.7));
       setPanelWidth(newWidth);
     }
@@ -170,20 +165,20 @@ function App() {
   useEffect(() => {
     fetchFiles();
     fetchSessions();
-    const initialOpenState = {};
-    Object.keys(groupedSessions).forEach(group => {
-        initialOpenState[group] = true;
-    });
-    setOpenSessionGroups(initialOpenState);
   }, []);
 
   const fetchSessions = async () => {
     try {
       const res = await axios.get(`${API_BASE_URL}/sessions`);
       setSessions(res.data || []);
+      // Auto-open the most recent session group
+      if (res.data && res.data.length > 0) {
+        const mostRecentDate = new Date(res.data[0].timestamp);
+        const mostRecentGroup = mostRecentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+        setOpenSessionGroups({ [mostRecentGroup]: true });
+      }
     } catch (error) {
       console.error('Error fetching sessions:', error);
-      // Optionally set an error state for sessions
     }
   };
 
@@ -193,13 +188,7 @@ function App() {
     try {
       const res = await axios.get(`${API_BASE_URL}/files`);
       const files = res.data.content || [];
-      
-      const groups = {
-        'Well Logs': [],
-        'Seismic': [],
-        'Other': [],
-      };
-
+      const groups = { 'Well Logs': [], 'Seismic': [], 'Other': [] };
       files.forEach(fileObj => {
         let filename = '';
         if (typeof fileObj === 'object' && fileObj !== null) {
@@ -207,17 +196,11 @@ function App() {
         } else if (typeof fileObj === 'string') {
           filename = fileObj;
         }
-
-        if (filename.toLowerCase().endsWith('.las')) {
-          groups['Well Logs'].push(filename);
-        } else if (filename.toLowerCase().endsWith('.sgy') || filename.toLowerCase().endsWith('.segy')) {
-          groups['Seismic'].push(filename);
-        } else if (filename) {
-          groups['Other'].push(filename);
-        }
+        if (filename.toLowerCase().endsWith('.las')) groups['Well Logs'].push(filename);
+        else if (filename.toLowerCase().endsWith('.sgy') || filename.toLowerCase().endsWith('.segy')) groups['Seismic'].push(filename);
+        else if (filename) groups['Other'].push(filename);
       });
       setGroupedFiles(groups);
-
     } catch (error) {
       console.error('Error fetching files:', error);
       setFilesError("Failed to fetch files. Please check API server connection and refresh.");
@@ -229,36 +212,24 @@ function App() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!query.trim()) return;
-
     setLoading(true);
     const newHistory = [...history, { role: 'user', content: query }];
     setHistory(newHistory);
-    setQuery(''); // Clear input after submission
-
+    setQuery('');
     try {
-      const payload = {
-        query: query,
-        conversation_id: currentConversationId,
-      };
+      const payload = { query: query, conversation_id: currentConversationId };
       const result = await axios.post(`${API_BASE_URL}/query`, payload);
-      
       const newConversationId = result.data.conversation_id;
       const newHistory = result.data.history;
-
       setCurrentConversationId(newConversationId);
       setHistory(newHistory);
-
-      // Update or create session
       const existingSessionIndex = sessions.findIndex(s => s.id === newConversationId);
-
       if (existingSessionIndex > -1) {
-        // Update existing session
         const updatedSessions = [...sessions];
         updatedSessions[existingSessionIndex].history = newHistory;
         updatedSessions[existingSessionIndex].timestamp = new Date().toISOString();
         setSessions(updatedSessions);
       } else {
-        // Create a new session for the new conversation
         const newSession = {
           id: newConversationId,
           title: newHistory[0]?.content || 'New Session',
@@ -268,23 +239,115 @@ function App() {
         setSessions(prevSessions => [newSession, ...prevSessions]);
         setSelectedSessionId(newConversationId);
       }
-
     } catch (error) {
       const errorMessage = `Error: ${error.response?.data?.detail || error.message}`;
-      setHistory(prev => [...prev, {role: 'assistant', content: errorMessage}]);
+      setHistory(prev => [...prev, { role: 'assistant', content: errorMessage }]);
     } finally {
       setLoading(false);
     }
   };
-  
+
   const handleCategoryClick = (category) => {
     setOpenCategories(prev => ({ ...prev, [category]: !prev[category] }));
   };
 
-  const drawerProps = {
-    filesLoading, filesError, groupedFiles, handleCategoryClick, openCategories,
-    groupedSessions, handleSessionGroupClick, openSessionGroups, handleSessionClick, selectedSessionId
-  };
+  const drawerContent = (
+    <>
+      <Paper sx={{ p: 2, flex: '0 1 50%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+          <DescriptionIcon sx={{ mr: 1 }} />
+          <Typography variant="h6">Available Files</Typography>
+        </Box>
+        {filesLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>
+        ) : filesError ? (
+          <Typography color="error">{filesError}</Typography>
+        ) : (Object.values(groupedFiles).every(arr => arr.length === 0)) ? (
+          <Typography variant="body2">No available files found.</Typography>
+        ) : (
+          <List component="nav" dense sx={{ overflowY: 'auto', flexGrow: 1 }}>
+            {Object.entries(groupedFiles).map(([category, files]) => (
+              (files && files.length > 0) && (
+                <React.Fragment key={category}>
+                  <ListItemButton onClick={() => handleCategoryClick(category)}>
+                    {category === 'Well Logs' && <img src="/welllog_icon.png" alt="Well Log" style={{ width: 24, height: 24, marginRight: 8 }} />}
+                    {category === 'Seismic' && <img src="/seismic_icon.png" alt="Seismic" style={{ width: 24, height: 24, marginRight: 8 }} />}
+                    <ListItemText primary={`${category} (${files.length})`} />
+                    {openCategories[category] ? <ExpandLess /> : <ExpandMore />}
+                  </ListItemButton>
+                  <Collapse in={openCategories[category]} timeout="auto" unmountOnExit>
+                    <List component="div" disablePadding dense>
+                      {files.map((file, index) => (
+                        <ListItem key={index} sx={{ pl: 4 }}>
+                          <ListItemText primary={file} primaryTypographyProps={{ style: { whiteSpace: "normal" } }} />
+                        </ListItem>
+                      ))}
+                    </List>
+                  </Collapse>
+                </React.Fragment>
+              )
+            ))}
+          </List>
+        )}
+      </Paper>
+      <Paper sx={{ p: 2, flex: '1 1 50%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+          <HistoryIcon sx={{ mr: 1 }} />
+          <Typography variant="h6">Sessions</Typography>
+        </Box>
+        <List component="nav" dense sx={{ overflowY: 'auto', flexGrow: 1, p: 0 }}>
+          {Object.entries(groupedSessions).map(([groupName, sessionItems]) => (
+            <React.Fragment key={groupName}>
+              <ListItemButton onClick={() => handleSessionGroupClick(groupName)}>
+                <ListItemText primary={groupName} primaryTypographyProps={{ style: { fontWeight: 'bold' } }} />
+                {openSessionGroups[groupName] ? <ExpandLess /> : <ExpandMore />}
+              </ListItemButton>
+              <Collapse in={openSessionGroups[groupName]} timeout="auto" unmountOnExit>
+                <List component="div" disablePadding dense>
+                  {sessionItems.map((session) => (
+                    <ListItem
+                      key={session.id}
+                      onClick={() => handleSessionClick(session.id)}
+                      secondaryAction={
+                        <Radio
+                          edge="end"
+                          checked={selectedSessionId === session.id}
+                          onChange={() => handleSessionClick(session.id)}
+                          value={session.id}
+                          name="session-radio-button"
+                        />
+                      }
+                      disablePadding
+                      sx={{
+                        border: '1px solid #ddd',
+                        borderRadius: '8px',
+                        mb: 1,
+                        cursor: 'pointer',
+                        '&:hover': { backgroundColor: 'action.hover' },
+                        ...(selectedSessionId === session.id && {
+                          borderColor: '#005A9C',
+                          borderWidth: '2px',
+                          backgroundColor: 'action.selected'
+                        }),
+                        p: 1, pl: 2
+                      }}
+                    >
+                      <ListItemText
+                        primary={session.title}
+                        secondary={`${new Date(session.timestamp).toLocaleString()}`}
+                        primaryTypographyProps={{ style: { textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', paddingRight: '32px' } }}
+                        secondaryTypographyProps={{ style: { textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', paddingRight: '32px' } }}
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              </Collapse>
+            </React.Fragment>
+          ))}
+        </List>
+      </Paper>
+    </>
+  );
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
@@ -313,17 +376,31 @@ function App() {
       </AppBar>
 
       <Box sx={{ flexGrow: 1, overflow: 'hidden', display: 'flex' }}>
-        {/* Left Panel Drawer */}
         <Box
           component="nav"
           sx={{ width: { md: panelWidth }, flexShrink: { md: 0 } }}
         >
+          {/* Mobile Drawer */}
+          <Drawer
+            variant="temporary"
+            open={mobileOpen}
+            onClose={handleDrawerToggle}
+            ModalProps={{ keepMounted: true }}
+            sx={{
+              display: { xs: 'block', md: 'none' },
+              '& .MuiDrawer-paper': { boxSizing: 'border-box', width: panelWidth, p: 2, gap: 2, display: 'flex', flexDirection: 'column' },
+            }}
+          >
+            {drawerContent}
+          </Drawer>
+
+          {/* Desktop Drawer */}
           <Drawer
             variant="permanent"
             sx={{
               display: { xs: 'none', md: 'flex' },
-              '& .MuiDrawer-paper': { 
-                boxSizing: 'border-box', 
+              '& .MuiDrawer-paper': {
+                boxSizing: 'border-box',
                 width: panelWidth,
                 position: 'relative',
                 height: '100%',
@@ -336,50 +413,21 @@ function App() {
             }}
             open
           >
-            <DrawerContent {...drawerProps} />
-          </Drawer>
-          <Drawer
-            variant="temporary"
-            open={mobileOpen}
-            onClose={handleDrawerToggle}
-            ModalProps={{
-              keepMounted: true, // Better open performance on mobile.
-            }}
-            sx={{
-              display: { xs: 'block', md: 'none' },
-              '& .MuiDrawer-paper': { 
-                boxSizing: 'border-box', 
-                width: panelWidth,
-                p: 2,
-                gap: 2,
-                display: 'flex',
-                flexDirection: 'column'
-              },
-            }}
-          >
-            <DrawerContent {...drawerProps} />
+            {drawerContent}
           </Drawer>
         </Box>
 
-        {/* Resizable Divider - Hidden on mobile */}
         {!isMobile && (
           <Box
             onMouseDown={handleMouseDown}
             sx={{
-              width: '8px',
-              cursor: 'col-resize',
-              backgroundColor: isDragging ? '#005A9C' : 'transparent',
-              borderLeft: '1px solid #ddd',
-              borderRight: '1px solid #ddd',
-              transition: 'background-color 0.2s',
-              '&:hover': {
-                backgroundColor: '#e0e0e0'
-              }
+              width: '8px', cursor: 'col-resize', backgroundColor: isDragging ? '#005A9C' : 'transparent',
+              borderLeft: '1px solid #ddd', borderRight: '1px solid #ddd',
+              transition: 'background-color 0.2s', '&:hover': { backgroundColor: '#e0e0e0' }
             }}
           />
         )}
 
-        {/* Right Panel */}
         <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100%', p: 2, minWidth: 0 }}>
           <Paper component="form" onSubmit={handleSubmit} sx={{ p: 2, flexShrink: 0, mb: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
@@ -413,7 +461,7 @@ function App() {
               endIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
               type="submit"
               disabled={loading}
-              sx={{mr: 1}}
+              sx={{ mr: 1 }}
             >
               Submit Query
             </Button>
@@ -431,11 +479,7 @@ function App() {
                 <Typography variant="subtitle2" sx={{ color: item.role === 'user' ? '#90caf9' : '#a5d6a7', textTransform: 'capitalize' }}>
                   {item.role}
                 </Typography>
-                <Box sx={{
-                    bgcolor: '#282c34',
-                    borderRadius: 1,
-                    p: 1
-                  }}>
+                <Box sx={{ bgcolor: '#282c34', borderRadius: 1, p: 1 }}>
                   <SyntaxHighlighter language="text" style={atomOneDark} wrapLongLines={true} customStyle={{ margin: 0, padding: '1rem', backgroundColor: '#282c34' }}>
                     {String(item.content)}
                   </SyntaxHighlighter>
@@ -455,13 +499,13 @@ function App() {
         <DialogTitle>Available Tools and Usage Examples</DialogTitle>
         <DialogContent>
           <Typography variant="h6" gutterBottom>SEG-Y Seismic Analysis Tools ({segyTools.length})</Typography>
-          <TableContainer component={Paper} sx={{mb: 4}}>
+          <TableContainer component={Paper} sx={{ mb: 4 }}>
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{fontWeight: 'bold'}}>Tool</TableCell>
-                  <TableCell sx={{fontWeight: 'bold'}}>Purpose</TableCell>
-                  <TableCell sx={{fontWeight: 'bold'}}>Example Usage</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Tool</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Purpose</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Example Usage</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -481,9 +525,9 @@ function App() {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{fontWeight: 'bold'}}>Tool</TableCell>
-                  <TableCell sx={{fontWeight: 'bold'}}>Purpose</TableCell>
-                  <TableCell sx={{fontWeight: 'bold'}}>Example Usage</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Tool</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Purpose</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Example Usage</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
