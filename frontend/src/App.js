@@ -107,15 +107,10 @@ function App() {
   };
 
   const handleSessionClick = (sessionId) => {
-    const session = sessions.find(s => s.id === sessionId);
-    if (session) {
-      setSelectedSessionId(session.id);
-      setCurrentConversationId(session.id);
-      setHistory(session.history);
-      setQuery('');
-      if (isMobile) {
-        setMobileOpen(false);
-      }
+    setSelectedSessionId(sessionId);
+    setQuery('');
+    if (isMobile) {
+      setMobileOpen(false);
     }
   };
 
@@ -166,6 +161,16 @@ function App() {
     fetchFiles();
     fetchSessions();
   }, []);
+
+  useEffect(() => {
+    if (selectedSessionId) {
+      const session = sessions.find(s => s.id === selectedSessionId);
+      if (session) {
+        setCurrentConversationId(session.id);
+        setHistory(session.history);
+      }
+    }
+  }, [selectedSessionId, sessions]);
 
   const fetchSessions = async () => {
     try {
