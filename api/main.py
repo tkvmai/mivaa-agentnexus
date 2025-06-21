@@ -128,7 +128,10 @@ async def get_status(request: Request):
 @app.get("/api/files")
 async def list_files():
     try:
-        mcp_client = platform.get_mcp_server()
+        if not platform.mcp_client:
+            raise HTTPException(status_code=500, detail="MCP Client not initialized")
+            
+        mcp_client = platform.mcp_client
         raw_result = mcp_client.call_tool("list_files", "*")
         
         # Use the robust unwrapping function to get the clean content
