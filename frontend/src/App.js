@@ -215,6 +215,8 @@ function App() {
                   (files && files.length > 0) && (
                     <React.Fragment key={category}>
                       <ListItem button onClick={() => handleCategoryClick(category)}>
+                        {category === 'Well Logs' && <img src="/welllog_icon.png" alt="Well Log" style={{ width: 24, height: 24, marginRight: 8 }} />}
+                        {category === 'Seismic' && <img src="/seismic_icon.png" alt="Seismic" style={{ width: 24, height: 24, marginRight: 8 }} />}
                         <ListItemText primary={`${category} (${files.length})`} />
                         {openCategories[category] ? <ExpandLess /> : <ExpandMore />}
                       </ListItem>
