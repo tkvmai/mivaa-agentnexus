@@ -77,22 +77,46 @@ class HybridAgent:
             "errors": 0
         }
 
-    def run(self, query: str) -> str:
+    def run(self, query: str = None, chat_history: List[Dict[str, str]] = None) -> str:
         """
-        Process a query using the hybrid approach
+        Process a query using the hybrid approach.
+        Can take a single query or a full chat history for context.
 
         Args:
-            query: User query string
+            query: User query string (for single-turn interactions).
+            chat_history: A list of dictionaries, where each dict has 'role' and 'content'.
 
         Returns:
-            Processed response string
+            Processed response string.
         """
         self.stats["total_queries"] += 1
-        self.logger.debug(f"Processing query: {query[:100]}...")
+
+        if chat_history:
+            # If history is provided, use it to populate the memory
+            # This is key for conversational context
+            memory: ConversationBufferMemory = self.agent_executor.memory
+            memory.chat_memory.clear()
+            for message in chat_history[:-1]: # Load all but the last message
+                if message['role'] == 'user':
+                    memory.chat_memory.add_user_message(message['content'])
+                elif message['role'] == 'assistant':
+                    memory.chat_memory.add_ai_message(message['content'])
+            
+            # The final message in the history is the new query
+            current_query = chat_history[-1]['content']
+            self.logger.debug(f"Processing query from history: {current_query[:100]}...")
+        elif query:
+            # Fallback for non-conversational calls
+            current_query = query
+            self.agent_executor.memory.chat_memory.clear() # Ensure clean slate
+            self.logger.debug(f"Processing single query: {current_query[:100]}...")
+        else:
+            raise ValueError("HybridAgent.run() requires either 'query' or 'chat_history'.")
+
 
         # Step 1: Try direct command processing first
         try:
-            direct_result = self.command_processor(query)
+            direct_result = self.command_processor(current_query)
             if direct_result:
                 self.stats["direct_commands"] += 1
                 self.logger.debug("Query handled by direct command processor")
@@ -102,7 +126,8 @@ class HybridAgent:
 
         # Step 2: Use ReAct agent
         try:
-            result = self.agent_executor.invoke({"input": query})
+            # The agent now has the history loaded in its memory
+            result = self.agent_executor.invoke({"input": current_query})
 
             # Handle ReAct agent response structure
             if isinstance(result, dict):
@@ -119,7 +144,7 @@ class HybridAgent:
 
         except Exception as e:
             self.logger.warning(f"ReAct agent processing failed: {str(e)}")
-            return self._try_fallback_handlers(query, str(e))
+            return self._try_fallback_handlers(current_query, str(e))
 
     def _format_agent_response(self, response: str) -> str:
         """Format agent response for better readability"""

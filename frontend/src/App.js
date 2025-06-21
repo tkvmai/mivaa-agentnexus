@@ -27,6 +27,8 @@ import {
   TableRow,
   TableCell,
   TableBody,
+  Radio,
+  ListItemButton,
 } from '@mui/material';
 import {
   Send as SendIcon,
@@ -67,7 +69,7 @@ const lasTools = [
 
 function App() {
   const [query, setQuery] = useState('');
-  const [response, setResponse] = useState('');
+  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
   const [groupedFiles, setGroupedFiles] = useState({});
   const [openCategories, setOpenCategories] = useState({ 'Well Logs': true, 'Seismic': true, 'Other': true });
@@ -76,6 +78,54 @@ function App() {
   const [filesError, setFilesError] = useState(null);
   const [panelWidth, setPanelWidth] = useState(400); // Initial width for the left panel
   const [isDragging, setIsDragging] = useState(false);
+  const [currentConversationId, setCurrentConversationId] = useState(null);
+
+  const [sessions, setSessions] = useState([
+    { id: 'sess_1', title: 'Well data research request', timestamp: '2024-11-29T10:33:49Z', agent: 'Production Agent', history: [{role: 'user', content: 'Find me well data for the North Sea'}, {role: 'assistant', content: 'Here is the well data research for the North Sea...'}] },
+    { id: 'sess_2', title: 'Extract well production data', timestamp: '2024-11-27T12:13:54Z', agent: 'Production Agent', history: [{role: 'user', content: 'Extract production data from well_1.las'}, {role: 'assistant', content: 'Production data extracted successfully.'}]},
+    { id: 'sess_3', title: 'monthly production plot', timestamp: '2024-11-25T11:22:37Z', agent: 'Production Agent', history: [{role: 'user', content: 'Create a monthly production plot for all wells.'}, {role: 'assistant', content: 'Here is the generated monthly plot.'}, {role: 'user', content: 'Can you change the color to blue?'}, {role: 'assistant', content: 'Of course, here is the plot in blue.'}] },
+    { id: 'sess_4', title: 'Retrieve production data', timestamp: '2024-11-22T13:20:18Z', agent: 'Production Agent', history: [{role: 'user', content: 'Retrieve production data for well_2.las'}, {role: 'assistant', content: 'Data retrieved.'}]},
+    { id: 'sess_5', title: 'Retrieve well report details', timestamp: '2024-11-22T12:07:37Z', agent: 'Production Agent', history: [{role: 'user', content: 'Get well report details for well_3.las'}, {role: 'assistant', content: 'Report details are as follows...'}]},
+    { id: 'sess_6', title: 'Analyze production data', timestamp: '2024-10-21T14:21:24Z', agent: 'Production Agent', history: [{role: 'user', content: 'Analyze production data in file xyz'}, {role: 'assistant', content: 'Analysis complete.'}]},
+  ]);
+  const [selectedSessionId, setSelectedSessionId] = useState('sess_3');
+  const [openSessionGroups, setOpenSessionGroups] = useState({});
+
+  const startNewChat = () => {
+    setSelectedSessionId(null);
+    setCurrentConversationId(null);
+    setQuery('');
+    setHistory([]);
+  };
+
+  const handleSessionClick = (sessionId) => {
+    const session = sessions.find(s => s.id === sessionId);
+    if (session) {
+      setSelectedSessionId(session.id);
+      setCurrentConversationId(session.id);
+      setHistory(session.history);
+      const lastUserQuery = session.history.filter(m => m.role === 'user').slice(-1)[0]?.content || '';
+      setQuery(lastUserQuery);
+    }
+  };
+
+  const groupSessionsByMonth = (sessionsToGroup) => {
+    return sessionsToGroup.reduce((acc, session) => {
+      const date = new Date(session.timestamp);
+      const monthYear = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+      if (!acc[monthYear]) {
+        acc[monthYear] = [];
+      }
+      acc[monthYear].push(session);
+      return acc;
+    }, {});
+  };
+
+  const groupedSessions = groupSessionsByMonth(sessions);
+
+  const handleSessionGroupClick = (groupName) => {
+      setOpenSessionGroups(prev => ({ ...prev, [groupName]: !prev[groupName] }));
+  };
 
   const handleMouseDown = useCallback((e) => {
     e.preventDefault();
@@ -107,6 +157,11 @@ function App() {
 
   useEffect(() => {
     fetchFiles();
+    const initialOpenState = {};
+    Object.keys(groupedSessions).forEach(group => {
+        initialOpenState[group] = true;
+    });
+    setOpenSessionGroups(initialOpenState);
   }, []);
 
   const fetchFiles = async () => {
@@ -153,12 +208,23 @@ function App() {
     if (!query.trim()) return;
 
     setLoading(true);
-    setResponse('');
+    const newHistory = [...history, { role: 'user', content: query }];
+    setHistory(newHistory);
+    setQuery(''); // Clear input after submission
+
     try {
-      const response = await axios.post(`${API_BASE_URL}/query`, { query });
-      setResponse(response.data.response);
+      const payload = {
+        query: query,
+        conversation_id: currentConversationId,
+      };
+      const result = await axios.post(`${API_BASE_URL}/query`, payload);
+      
+      setCurrentConversationId(result.data.conversation_id);
+      setHistory(result.data.history);
+
     } catch (error) {
-      setResponse(`Error: ${error.response?.data?.detail || error.message}`);
+      const errorMessage = `Error: ${error.response?.data?.detail || error.message}`;
+      setHistory(prev => [...prev, {role: 'assistant', content: errorMessage}]);
     } finally {
       setLoading(false);
     }
@@ -180,9 +246,6 @@ function App() {
           <IconButton color="inherit" onClick={fetchFiles}>
             <RefreshIcon />
           </IconButton>
-          <IconButton color="inherit" onClick={() => setHelpOpen(true)}>
-            <HelpIcon />
-          </IconButton>
         </Toolbar>
       </AppBar>
 
@@ -194,10 +257,11 @@ function App() {
           display: 'flex',
           flexDirection: 'column',
           height: '100%',
-          overflowY: 'auto',
-          p: 2
+          overflow: 'hidden',
+          p: 2,
+          gap: 2
         }}>
-          <Paper sx={{ p: 2, flexGrow: 1, overflowY: 'auto' }}>
+          <Paper sx={{ p: 2, flexShrink: 0, overflowY: 'auto' }}>
             <Typography variant="h6" gutterBottom>
               Available Files
             </Typography>
@@ -235,6 +299,64 @@ function App() {
               </List>
             )}
           </Paper>
+          <Paper sx={{ p: 2, flexGrow: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+            <Typography variant="h6" gutterBottom>Sessions</Typography>
+            <List component="nav" dense sx={{ overflowY: 'auto', flexGrow: 1, p:0 }}>
+              {Object.entries(groupedSessions).map(([groupName, sessionItems]) => (
+                <React.Fragment key={groupName}>
+                  <ListItemButton onClick={() => handleSessionGroupClick(groupName)}>
+                    <ListItemText primary={groupName} primaryTypographyProps={{ style: { fontWeight: 'bold' } }} />
+                    {openSessionGroups[groupName] ? <ExpandLess /> : <ExpandMore />}
+                  </ListItemButton>
+                  <Collapse in={openSessionGroups[groupName]} timeout="auto" unmountOnExit>
+                    <List component="div" disablePadding dense>
+                      {sessionItems.map((session) => (
+                        <ListItem
+                          key={session.id}
+                          onClick={() => handleSessionClick(session.id)}
+                          secondaryAction={
+                             <Radio
+                                edge="end"
+                                checked={selectedSessionId === session.id}
+                                onChange={() => handleSessionClick(session.id)}
+                                value={session.id}
+                                name="session-radio-button"
+                              />
+                          }
+                          disablePadding
+                          sx={{ 
+                              border: '1px solid #ddd',
+                              borderRadius: '8px',
+                              mb: 1,
+                              cursor: 'pointer',
+                              '&:hover': {
+                                backgroundColor: 'action.hover'
+                              },
+                              ...(selectedSessionId === session.id && {
+                                  borderColor: '#005A9C',
+                                  borderWidth: '2px',
+                                  backgroundColor: 'action.selected'
+                              }),
+                              p:1,
+                              pl:2
+                          }}
+                        >
+                          <ListItemText
+                            primary={session.title}
+                            secondary={`
+                              ${new Date(session.timestamp).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit'})} - AI: ${session.agent}
+                            `}
+                            primaryTypographyProps={{ style: { fontWeight: 500, marginBottom: '4px' } }}
+                            secondaryTypographyProps={{ style: { whiteSpace: 'nowrap' } }}
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
+                  </Collapse>
+                </React.Fragment>
+              ))}
+            </List>
+          </Paper>
         </Box>
 
         {/* Resizable Divider */}
@@ -256,9 +378,19 @@ function App() {
         {/* Right Panel */}
         <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100%', p: 2, minWidth: 0 }}>
           <Paper component="form" onSubmit={handleSubmit} sx={{ p: 2, flexShrink: 0, mb: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              Query Agent
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Typography variant="h6" component="div">
+                Query Agent
+              </Typography>
+              <Button
+                variant="outlined"
+                startIcon={<HelpIcon />}
+                onClick={() => setHelpOpen(true)}
+                size="small"
+              >
+                Example prompts
+              </Button>
+            </Box>
             <TextField
               fullWidth
               multiline
@@ -274,29 +406,38 @@ function App() {
               endIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
               type="submit"
               disabled={loading}
+              sx={{mr: 1}}
             >
               Submit Query
+            </Button>
+            <Button variant="text" onClick={startNewChat}>
+              New Chat
             </Button>
           </Paper>
 
           <Paper sx={{ p: 2, flexGrow: 1, overflowY: 'auto', bgcolor: '#282c34' }}>
             <Typography variant="h6" gutterBottom sx={{ color: 'white' }}>
-              Response
+              Conversation
             </Typography>
-            {loading && !response && (
-              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                <CircularProgress />
-              </Box>
-            )}
-            {response && (
-               <Box sx={{
+            {history.map((item, index) => (
+              <Box key={index} sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" sx={{ color: item.role === 'user' ? '#90caf9' : '#a5d6a7', textTransform: 'capitalize' }}>
+                  {item.role}
+                </Typography>
+                <Box sx={{
                     bgcolor: '#282c34',
                     borderRadius: 1,
                     p: 1
                   }}>
-                <SyntaxHighlighter language="text" style={atomOneDark} wrapLongLines={true} customStyle={{ margin: 0, padding: '1rem', backgroundColor: '#282c34' }}>
-                  {String(response)}
-                </SyntaxHighlighter>
+                  <SyntaxHighlighter language="text" style={atomOneDark} wrapLongLines={true} customStyle={{ margin: 0, padding: '1rem', backgroundColor: '#282c34' }}>
+                    {String(item.content)}
+                  </SyntaxHighlighter>
+                </Box>
+              </Box>
+            ))}
+            {loading && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: 2 }}>
+                <CircularProgress />
               </Box>
             )}
           </Paper>

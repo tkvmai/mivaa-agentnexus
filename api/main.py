@@ -4,6 +4,8 @@ from pydantic import BaseModel
 import sys
 import json
 from pathlib import Path
+from typing import List, Optional
+import uuid
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
@@ -23,13 +25,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# In-memory store for conversations
+conversations = {}
+
 # Initialize platform
 config = load_config()
 platform = SubsurfaceDataPlatform(config)
 platform.initialize()
 
+class Message(BaseModel):
+    role: str # 'user' or 'assistant'
+    content: str
+
 class QueryRequest(BaseModel):
     query: str
+    conversation_id: Optional[str] = None
+
+class QueryResponse(BaseModel):
+    response: str
+    conversation_id: str
+    history: List[Message]
 
 def unwrap_mcp_response(data):
     """
@@ -58,12 +73,38 @@ def unwrap_mcp_response(data):
 
     return current_data # Fallback for unexpected formats
 
-@app.post("/api/query")
+@app.post("/api/query", response_model=QueryResponse)
 async def process_query(request: QueryRequest):
     try:
-        response = await platform.agent.run(request.query)
-        return {"response": response}
+        conversation_id = request.conversation_id or str(uuid.uuid4())
+        
+        # Retrieve history or start a new one
+        history = conversations.get(conversation_id, [])
+        
+        # Add user's new query to history
+        history.append({"role": "user", "content": request.query})
+        
+        # The agent now receives the whole history
+        # Note: We need to ensure the agent's `run` method can handle a `chat_history` argument.
+        # This might require changes in `main.py` or the agent class itself.
+        response_content = await platform.agent.run(chat_history=history)
+
+        # Add assistant's response to history
+        history.append({"role": "assistant", "content": response_content})
+        
+        # Store the updated history
+        conversations[conversation_id] = history
+        
+        return QueryResponse(
+            response=response_content,
+            conversation_id=conversation_id,
+            history=[Message.parse_obj(msg) for msg in history]
+        )
     except Exception as e:
+        # It's useful to log the exception here
+        print(f"Error in process_query: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/status")
