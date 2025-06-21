@@ -112,8 +112,7 @@ function App() {
       setSelectedSessionId(session.id);
       setCurrentConversationId(session.id);
       setHistory(session.history);
-      const lastUserQuery = session.history.filter(m => m.role === 'user').slice(-1)[0]?.content || '';
-      setQuery(lastUserQuery);
+      setQuery('');
       if (isMobile) {
         setMobileOpen(false);
       }
