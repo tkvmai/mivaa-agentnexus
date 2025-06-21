@@ -445,12 +445,29 @@ Available tools: list_files, system_status, health_check, directory_info, las_pa
 
         query_lower = query.lower()
 
-        # Direct tool execution fallback
-        if "list files" in query_lower or "list" in query_lower:
-            # Extract pattern if any
-            pattern_match = re.search(r'\*\.[a-z]+|\*[a-z0-9_]+\*?|[a-z0-9_]+\*', query, re.IGNORECASE)
-            pattern = pattern_match.group(0) if pattern_match else "*"
-            return self._execute_mcp_tool('list_files', pattern)
+        # Simple tool routing based on keywords
+        if "list" in query_lower or "show" in query_lower:
+            return self._execute_mcp_tool('list_files', '*')
+        elif ".las" in query_lower:
+            if "evaluate" in query_lower or "formation" in query_lower:
+                return self._execute_mcp_tool('formation_evaluation', file_path)
+            elif "analyze" in query_lower:
+                return self._execute_mcp_tool('las_analysis', file_path)
+            elif "correlate" in query_lower:
+                return self._execute_mcp_tool('well_correlation', file_path)
+            elif "quality" in query_lower or "qc" in query_lower:
+                 return self._execute_mcp_tool('las_qc', file_path)
+            else: # Default to parser
+                return self._execute_mcp_tool('las_parser', file_path)
+        elif ".sgy" in query_lower or ".segy" in query_lower:
+            if "classify" in query_lower:
+                return self._execute_mcp_tool('segy_classify', file_path)
+            elif "analyze" in query_lower:
+                return self._execute_mcp_tool('segy_analysis', file_path)
+            elif "quality" in query_lower or "qc" in query_lower:
+                return self._execute_mcp_tool('segy_qc', file_path)
+            else: # Default to parser
+                return self._execute_mcp_tool('segy_parser', file_path)
         elif "status" in query_lower:
             return self._execute_mcp_tool('system_status', '')
         elif "health" in query_lower:
