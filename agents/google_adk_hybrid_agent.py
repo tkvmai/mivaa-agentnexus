@@ -385,8 +385,7 @@ You: [CALLS system_status(query="")]
 Then: Present the status information
 
 **REMEMBER: Always provide ALL required parameters when calling tools!**
-
-Available tools: list_files, system_status, health_check, directory_info, las_parser, las_analysis, formation_evaluation, well_correlation, segy_parser, segy_classify, segy_qc, quick_segy_summary."""
+"""
 
     async def _execute_with_google_adk(self, query: str, chat_history: Optional[List[Dict]] = None, conversation_id: str = None) -> str:
         """
@@ -403,15 +402,19 @@ Available tools: list_files, system_status, health_check, directory_info, las_pa
             session_id = conversation_id or f"session-{os.urandom(16).hex()}"
             self.logger.info(f"Using session ID: {session_id} for query: '{query}'")
             
-            # Load existing session or create a new one
+            # Load existing session or create a new one. `load_session` creates one if it doesn't exist.
             session = await self.session_service.load_session(session_id)
 
-            # If the session is new, populate its history from chat_history
-            if not session.history and chat_history:
-                 self.logger.debug(f"Populating new session {session_id} with {len(chat_history)} messages.")
-                 for message in chat_history:
-                    role = "user" if message["role"] == "user" else "model"
-                    session.add_message(types.Message(content=message["content"], role=role))
+            # Always ensure the latest history is reflected in the session.
+            # We clear and rebuild the history from the chat_history object on each turn.
+            # This is inefficient but guarantees correctness and avoids state mismatches.
+            if chat_history:
+                session.history.clear()
+                self.logger.debug(f"Rebuilding session {session_id} with {len(chat_history)} messages.")
+                for message in chat_history:
+                    # The role mapping should be 'user' for user and 'model' for assistant
+                    role = "user" if message.get("role") == "user" else "model"
+                    session.add_message(types.Message(content=message.get("content", ""), role=role))
             
             response_future = self.runner.run(session_id, query)
             response_generator = await response_future
@@ -423,7 +426,9 @@ Available tools: list_files, system_status, health_check, directory_info, las_pa
             
             # Save the final state of the session
             final_session = await self.session_service.load_session(session_id)
-            final_session.add_message(types.Message(content=final_response, role="model"))
+            # The runner should have added the agent's response, but we add it just in case
+            if not final_session.history or final_session.history[-1].content != final_response:
+                final_session.add_message(types.Message(content=final_response, role="model"))
             await self.session_service.save_session(session_id, final_session)
 
 
