@@ -246,7 +246,7 @@ function App() {
                       borderRadius: 1,
                       p: 1
                     }}>
-                  <SyntaxHighlighter language="text" style={atomOneDark} customStyle={{ margin: 0, padding: '1rem', backgroundColor: '#282c34' }}>
+                  <SyntaxHighlighter language="text" style={atomOneDark} wrapLongLines={true} customStyle={{ margin: 0, padding: '1rem', backgroundColor: '#282c34' }}>
                     {String(response)}
                   </SyntaxHighlighter>
                 </Box>
