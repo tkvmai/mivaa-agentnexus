@@ -72,7 +72,7 @@ function App() {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
   const [groupedFiles, setGroupedFiles] = useState({});
-  const [openCategories, setOpenCategories] = useState({ 'Well Logs': true, 'Seismic': true, 'Other': true });
+  const [openCategories, setOpenCategories] = useState({ 'Well Logs': false, 'Seismic': false, 'Other': false });
   const [helpOpen, setHelpOpen] = useState(false);
   const [filesLoading, setFilesLoading] = useState(false);
   const [filesError, setFilesError] = useState(null);
@@ -278,7 +278,7 @@ function App() {
           p: 2,
           gap: 2
         }}>
-          <Paper sx={{ p: 2, flexShrink: 0, overflowY: 'auto' }}>
+          <Paper sx={{ p: 2, flex: '1 1 50%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
             <Typography variant="h6" gutterBottom>
               Available Files
             </Typography>
@@ -291,16 +291,16 @@ function App() {
             ) : (Object.values(groupedFiles).every(arr => arr.length === 0)) ? (
               <Typography variant="body2">No available files found.</Typography>
             ) : (
-              <List component="nav" dense>
+              <List component="nav" dense sx={{ overflowY: 'auto', flexGrow: 1 }}>
                 {Object.entries(groupedFiles).map(([category, files]) => (
                   (files && files.length > 0) && (
                     <React.Fragment key={category}>
-                      <ListItem button onClick={() => handleCategoryClick(category)}>
+                      <ListItemButton onClick={() => handleCategoryClick(category)}>
                         {category === 'Well Logs' && <img src="/welllog_icon.png" alt="Well Log" style={{ width: 24, height: 24, marginRight: 8 }} />}
                         {category === 'Seismic' && <img src="/seismic_icon.png" alt="Seismic" style={{ width: 24, height: 24, marginRight: 8 }} />}
                         <ListItemText primary={`${category} (${files.length})`} />
                         {openCategories[category] ? <ExpandLess /> : <ExpandMore />}
-                      </ListItem>
+                      </ListItemButton>
                       <Collapse in={openCategories[category]} timeout="auto" unmountOnExit>
                         <List component="div" disablePadding dense>
                           {files.map((file, index) => (
@@ -316,7 +316,7 @@ function App() {
               </List>
             )}
           </Paper>
-          <Paper sx={{ p: 2, flexGrow: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+          <Paper sx={{ p: 2, flex: '1 1 50%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
             <Typography variant="h6" gutterBottom>Sessions</Typography>
             <List component="nav" dense sx={{ overflowY: 'auto', flexGrow: 1, p:0 }}>
               {Object.entries(groupedSessions).map(([groupName, sessionItems]) => (
