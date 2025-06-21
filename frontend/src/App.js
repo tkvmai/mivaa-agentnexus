@@ -419,7 +419,7 @@ function App() {
             <Typography variant="h6" gutterBottom sx={{ color: 'white' }}>
               Conversation
             </Typography>
-            {history.map((item, index) => (
+            {[...history].reverse().map((item, index) => (
               <Box key={index} sx={{ mb: 2 }}>
                 <Typography variant="subtitle2" sx={{ color: item.role === 'user' ? '#90caf9' : '#a5d6a7', textTransform: 'capitalize' }}>
                   {item.role}

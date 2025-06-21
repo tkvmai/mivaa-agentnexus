@@ -600,10 +600,104 @@ class ToolExecutingHybridAgent:
         try:
             result = await self.agent_executor.invoke(input_data)
             # The response from Google ADK is typically a dict with an 'output' key
-            return result.get("output", str(result))
+            output = result.get("output", str(result))
+            return self._format_agent_response(output)
         except Exception as e:
             self.logger.error(f"Error during agent execution: {e}", exc_info=True)
             return f"An error occurred: {e}"
+
+    def _format_agent_response(self, response: str) -> str:
+        """Format agent response for better readability"""
+        if self._is_json_response(response):
+            return self._format_json_response(response)
+        return response
+
+    def _is_json_response(self, response: str) -> bool:
+        """Check if response is raw JSON"""
+        if isinstance(response, str):
+            stripped = response.strip()
+            return (stripped.startswith('{') and stripped.endswith('}')) or \
+                (stripped.startswith('[') and stripped.endswith(']'))
+        return False
+
+    def _format_json_response(self, json_str: str) -> str:
+        """Convert JSON response to human-readable format"""
+        try:
+            data = json.loads(json_str)
+            if isinstance(data, dict):
+                if 'file_processed' in data and 'survey_type' in data:
+                    return self._format_segy_analysis(data)
+                elif 'quality_rating' in data:
+                    return self._format_quality_analysis(data)
+                elif 'well_name' in data:
+                    return self._format_las_analysis(data)
+            return json.dumps(data, indent=2)
+        except json.JSONDecodeError:
+            return json_str
+
+    def _format_segy_analysis(self, data: Dict[str, Any]) -> str:
+        """Format SEG-Y analysis results"""
+        return f"""
+## SEG-Y Analysis Results
+**File:** {data.get('file_processed', 'Unknown')}
+**Survey Characteristics:**
+- Survey Type: {data.get('survey_type', 'Unknown')}
+- Stack Type: {data.get('stack_type', 'Unknown')}
+- Quality Rating: {data.get('quality_rating', 'Unknown')}
+**Technical Details:**
+- Total Traces: {data.get('total_traces', 0):,}
+- Sample Rate: {data.get('sample_rate_ms', 0)} ms
+- File Size: {data.get('file_size_mb', 0)} MB
+- Trace Length: {data.get('trace_length_ms', 0)} ms
+**Quality Assessment:**
+{self._format_quality_issues(data.get('quality_analysis', {}))}
+**Processing Notes:**
+{chr(10).join(data.get('processing_notes', []))}
+"""
+
+    def _format_quality_analysis(self, data: Dict[str, Any]) -> str:
+        """Format quality analysis results"""
+        return f"""
+## Quality Analysis Results
+**Overall Rating:** {data.get('quality_rating', 'Unknown')}
+**Key Metrics:**
+- Dynamic Range: {data.get('dynamic_range_db', 'N/A')} dB
+- Signal-to-Noise: {data.get('signal_to_noise', 'N/A')}
+- Zero Percentage: {data.get('zero_percentage', 'N/A')}%
+**Issues and Recommendations:**
+{self._format_quality_issues(data)}
+"""
+
+    def _format_las_analysis(self, data: Dict[str, Any]) -> str:
+        """Format LAS analysis results"""
+        return f"""
+## Well Log Analysis Results
+**Well:** {data.get('well_name', 'Unknown')}
+**File:** {data.get('file_processed', 'Unknown')}
+**Formation Evaluation:**
+- Average Porosity: {data.get('average_porosity', 'N/A')}%
+- Water Saturation: {data.get('water_saturation', 'N/A')}%
+- Shale Volume: {data.get('shale_volume', 'N/A')}%
+**Pay Zones:** {len(data.get('pay_zones', []))} identified
+**Quality Assessment:** {data.get('quality_rating', 'Unknown')}
+"""
+
+    def _format_quality_issues(self, quality_data: Dict[str, Any]) -> str:
+        """Format quality issues and warnings"""
+        output = []
+        issues = quality_data.get('issues', [])
+        if issues:
+            output.append("**Issues Found:**")
+            for issue in issues:
+                output.append(f"- {issue}")
+        warnings = quality_data.get('warnings', [])
+        if warnings:
+            output.append("**Warnings:**")
+            for warning in warnings:
+                output.append(f"- {warning}")
+        if not issues and not warnings:
+            output.append("No quality issues detected.")
+        return chr(10).join(output)
 
     def _is_obvious_system_command(self, query: str) -> bool:
         """Check for simple system commands that don't need complex reasoning"""
