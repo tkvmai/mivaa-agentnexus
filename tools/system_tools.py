@@ -187,9 +187,12 @@ def create_system_tools(mcp_server, data_config: DataConfig) -> List[str]:
             # --- SIMPLIFIED AND MORE ROBUST FILE LISTING ---
             all_files = os.listdir(data_dir)
             
+            # Exclude sessions.json from the list
+            filtered_files = [f for f in all_files if f.lower() != 'sessions.json']
+
             # This is a basic implementation. It can be expanded to support the `pattern` argument if needed.
             # For now, it returns all files, which is what the frontend expects.
-            file_paths = [os.path.join(data_dir, f) for f in all_files]
+            file_paths = [os.path.join(data_dir, f) for f in filtered_files]
             # --- END OF FIX ---
 
             if not file_paths:
