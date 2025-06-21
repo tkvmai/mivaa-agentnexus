@@ -233,7 +233,6 @@ function App() {
           id: newConversationId,
           title: newHistory[0]?.content || 'New Session',
           timestamp: new Date().toISOString(),
-          agent: 'Production Agent', // This can be made dynamic later
           history: newHistory,
         };
         setSessions(prevSessions => [newSession, ...prevSessions]);
@@ -361,11 +360,8 @@ function App() {
                         >
                           <ListItemText
                             primary={session.title}
-                            secondary={`
-                              ${new Date(session.timestamp).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit'})} - AI: ${session.agent}
-                            `}
-                            primaryTypographyProps={{ style: { fontWeight: 500, marginBottom: '4px' } }}
-                            secondaryTypographyProps={{ style: { whiteSpace: 'nowrap' } }}
+                            secondary={`${new Date(session.timestamp).toLocaleString()}`}
+                            primaryTypographyProps={{ sx: { textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' } }}
                           />
                         </ListItem>
                       ))}
