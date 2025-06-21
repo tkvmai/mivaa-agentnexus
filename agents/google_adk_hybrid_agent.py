@@ -388,73 +388,59 @@ Then: Present the status information
 
 Available tools: list_files, system_status, health_check, directory_info, las_parser, las_analysis, formation_evaluation, well_correlation, segy_parser, segy_classify, segy_qc, quick_segy_summary."""
 
-    async def _execute_with_google_adk(self, query: str) -> str:
-        """Execute query using Google ADK with tool execution"""
+    async def _execute_with_google_adk(self, query: str, chat_history: Optional[List[Dict]] = None) -> str:
+        """
+        Executes the query using the Google ADK Runner, now with session/history support.
+        """
+        self.stats["total_invocations"] += 1
         await self._ensure_google_adk_ready()
 
-        # Create message for Google ADK
-        content = types.Content(
-            role='user',
-            parts=[types.Part(text=query)]
-        )
-
-        tool_calls_made = []
-        final_response = ""
+        if self._initialization_error:
+            self.stats["failed_invocations"] += 1
+            return f"Google ADK is not available: {self._initialization_error}"
 
         try:
-            # Execute through Google ADK runner
-            async for event in self.runner.run_async(
-                user_id="hybrid_user",
-                session_id=self.session_id,
-                new_message=content
-            ):
-                self.logger.debug(f"Event type: {type(event).__name__}")
+            # Use a new session for each distinct conversation to maintain context
+            if chat_history:
+                # Re-construct session from history
+                self.session_id = f"session-{hash(str(chat_history))}"
+                session = await self.session_service.load_session(self.session_id)
+                if not session.history:
+                     for message in chat_history:
+                        role = "user" if message["role"] == "user" else "model"
+                        session.add_message(types.Message(content=message["content"], role=role))
+                     await self.session_service.save_session(self.session_id, session)
 
-                # Track tool calls and get response
-                if hasattr(event, 'content') and event.content and event.content.parts:
-                    final_response = event.content.parts[0].text
-                elif hasattr(event, 'text') and event.text:
-                    final_response = event.text
+            else: # Single query
+                self.session_id = f"session-{os.urandom(16).hex()}"
 
-                # Enhanced tool call detection
-                if hasattr(event, 'actions') and event.actions:
-                    for action in event.actions:
-                        if hasattr(action, 'tool_call') and action.tool_call:
-                            tool_calls_made.append({
-                                'tool': action.tool_call.name,
-                                'arguments': getattr(action.tool_call, 'parameters', {})
-                            })
-                            self.logger.info(f"Tool call detected: {action.tool_call.name}")
 
-                # Alternative tool call detection
-                if hasattr(event, 'tool_call') and event.tool_call:
-                    tool_calls_made.append({
-                        'tool': event.tool_call.name,
-                        'arguments': getattr(event.tool_call, 'parameters', {})
-                    })
-                    self.logger.info(f"Direct tool call detected: {event.tool_call.name}")
+            self.logger.info(f"Using session ID: {self.session_id} for query: '{query}'")
 
-            # Update statistics
-            self.stats["tool_executions"] += len(tool_calls_made)
+            response_future = self.runner.run(self.session_id, query)
+            response_generator = await response_future
 
-            if tool_calls_made:
-                self.logger.info(f"Successfully detected {len(tool_calls_made)} tool calls")
-            else:
-                # Check if our internal MCP calls were made
-                if "Executing list_files" in str(final_response) or "Found" in str(final_response):
-                    self.logger.info("Tool execution detected through MCP calls")
-                    self.stats["tool_executions"] += 1
-                else:
-                    self.logger.warning("No tools were executed - agent may need stronger instructions")
+            final_response = ""
+            async for chunk in response_generator:
+                if chunk.text:
+                    final_response += chunk.text
+            
+            # Save the final state of the session
+            final_session = await self.session_service.load_session(self.session_id)
+            await self.session_service.save_session(self.session_id, final_session)
 
-            return final_response or "Analysis completed."
+
+            self.stats["successful_invocations"] += 1
+            self.logger.info(f"Google ADK execution successful for query: '{query}'")
+            return final_response if final_response else "No output from agent."
 
         except Exception as e:
-            self.logger.error(f"Google ADK execution error: {e}")
+            self.stats["failed_invocations"] += 1
+            self.logger.error(f"Google ADK execution failed for query '{query}': {e}", exc_info=True)
             return self._minimal_fallback(query)
 
     def _minimal_fallback(self, query: str) -> str:
-        """Minimal fallback when Google ADK fails"""
+        """A minimal fallback that attempts to directly call a tool."""
         import re
 
         query_lower = query.lower()
@@ -470,34 +456,24 @@ Available tools: list_files, system_status, health_check, directory_info, las_pa
         elif "health" in query_lower:
             return self._execute_mcp_tool('health_check', '')
         else:
-            return f"I encountered a technical issue with Google ADK. Try asking for 'list files' or 'system status'."
+            return f"Agent failed. No fallback for query: '{query}'"
 
-    async def invoke(self, input_dict: Dict[str, str]) -> Dict[str, str]:
-        """Main invoke method"""
-        self.stats["total_invocations"] += 1
+    async def invoke(self, input_dict: Dict[str, Any]) -> Dict[str, str]:
+        """
+        Invoke the agent. This is the entry point for LangChain compatibility.
+        Now handles chat_history.
+        """
+        query = input_dict.get("input")
+        chat_history = input_dict.get("chat_history")
 
-        try:
-            query = input_dict.get("input", "")
-            if not query:
-                return {"output": "No input provided"}
+        if not query:
+            return {"output": "Error: Input dictionary must contain a non-empty 'input' key."}
 
-            self.logger.info(f"Processing query: {query[:100]}...")
-
-            # Execute with Google ADK tool execution
-            response = await self._execute_with_google_adk(query)
-
-            self.stats["successful_invocations"] += 1
-            return {"output": response}
-
-        except Exception as e:
-            self.stats["failed_invocations"] += 1
-            self.logger.error(f"Execution error: {e}")
-
-            error_response = f"Technical error during analysis: {str(e)[:200]}{'...' if len(str(e)) > 200 else ''}"
-            return {"output": error_response}
+        response = await self._execute_with_google_adk(query, chat_history=chat_history)
+        return {"output": response}
 
     async def _ensure_google_adk_ready(self):
-        """Ensure Google ADK is initialized"""
+        """Initializes Google ADK components if not already done."""
         if self._google_adk_ready:
             return True
 
@@ -570,46 +546,52 @@ class ToolExecutingHybridAgent:
             "system_type": "Google ADK Agent with Tool Execution"
         }
 
-    async def run(self, query: str) -> str:
-        """Process query with tool execution"""
-        self.stats["total_queries"] += 1
-        self.logger.debug(f"Processing: {query[:100]}...")
+    async def run(self, query: str = None, chat_history: List[Dict[str, str]] = None) -> str:
+        """
+        Process a query or chat history using the Google ADK agent.
+        """
+        self.logger.debug("ToolExecutingHybridAgent received a run call")
 
-        # Minimal direct command processing (only for obvious system commands)
-        if self._is_obvious_system_command(query):
-            try:
-                direct_result = self.command_processor(query)
-                if direct_result:
-                    self.stats["direct_commands"] += 1
-                    return direct_result
-            except Exception as e:
-                self.logger.debug(f"Direct command failed: {e}")
+        if chat_history:
+            # The last user message is the current query
+            current_query = next((m['content'] for m in reversed(chat_history) if m['role'] == 'user'), None)
+            if not current_query:
+                return "Error: Could not find user query in history."
+            
+            # Pass the full history to the executor's invoke method
+            # The executor will need to be updated to handle this
+            input_data = {"input": current_query, "chat_history": chat_history}
+            self.logger.debug(f"Running with chat history, query: '{current_query}'")
 
-        # Let the agent execute tools
+        elif query:
+            current_query = query
+            input_data = {"input": current_query}
+            self.logger.debug(f"Running with single query: '{current_query}'")
+        else:
+            raise ValueError("run() requires either 'query' or 'chat_history'.")
+
+        # Fallback for simple commands
+        if self._is_obvious_system_command(current_query):
+            self.logger.debug("Handling as an obvious system command.")
+            return await self.agent_executor.invoke(input_data)
+
+        # Main execution path
         try:
-            result = await self.agent_executor.invoke({"input": query})
-
-            if isinstance(result, dict):
-                output = result.get("output", str(result))
-            else:
-                output = str(result)
-
-            self.stats["agent_responses"] += 1
-            return output
-
+            result = await self.agent_executor.invoke(input_data)
+            # The response from Google ADK is typically a dict with an 'output' key
+            return result.get("output", str(result))
         except Exception as e:
-            self.logger.warning(f"Agent execution failed: {e}")
-            self.stats["errors"] += 1
-            return f"I encountered a technical issue while processing your request. Error: {str(e)[:200]}{'...' if len(str(e)) > 200 else ''}"
+            self.logger.error(f"Error during agent execution: {e}", exc_info=True)
+            return f"An error occurred: {e}"
 
     def _is_obvious_system_command(self, query: str) -> bool:
-        """Check if this is an obvious system command"""
+        """Check for simple system commands that don't need complex reasoning"""
         query_lower = query.lower().strip()
         obvious_commands = ["system status", "health check", "status", "health"]
         return query_lower in obvious_commands
 
     def get_stats(self) -> Dict[str, Any]:
-        """Get statistics"""
+        """Return statistics from the agent executor"""
         self.stats["uptime_hours"] = (time.time() - self._start_time) / 3600
 
         if hasattr(self.agent_executor, 'get_stats'):
