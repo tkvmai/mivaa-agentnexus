@@ -156,6 +156,13 @@ async def startup_event():
     # The main platform object, which holds the agent, still needs to be initialized.
     # We will ensure it's initialized without starting the sub-servers.
     platform.initialize_agent_only()
+    # Store the initialized agent in the application state so it's available to endpoints
+    app.state.agent = platform.agent
+    if not app.state.agent:
+        # This is a critical failure, we should log it.
+        # Note: a proper logger should be configured for a real application.
+        import logging
+        logging.getLogger(__name__).critical("CRITICAL: Agent could not be initialized and is not available in app state!")
 
 @app.on_event("shutdown")
 async def shutdown_event():
