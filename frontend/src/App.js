@@ -107,6 +107,9 @@ function App() {
       setHistory(session.history);
       const lastUserQuery = session.history.filter(m => m.role === 'user').slice(-1)[0]?.content || '';
       setQuery(lastUserQuery);
+      if (isMobile) {
+        setMobileOpen(false); // Close drawer on session selection
+      }
     }
   };
 
@@ -321,7 +324,6 @@ function App() {
               '& .MuiDrawer-paper': { 
                 boxSizing: 'border-box', 
                 width: panelWidth,
-                position: isMobile ? 'absolute' : 'relative',
                 height: '100%',
                 overflow: 'hidden',
                 p: 2,
