@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Container,
   Box,
@@ -74,6 +74,36 @@ function App() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [filesLoading, setFilesLoading] = useState(false);
   const [filesError, setFilesError] = useState(null);
+  const [panelWidth, setPanelWidth] = useState(400); // Initial width for the left panel
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleMouseDown = useCallback((e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  const handleMouseMove = useCallback((e) => {
+    if (isDragging) {
+      // Set constraints for the panel width
+      const newWidth = Math.max(250, Math.min(e.clientX, window.innerWidth * 0.7));
+      setPanelWidth(newWidth);
+    }
+  }, [isDragging]);
+
+  useEffect(() => {
+    if (isDragging) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, handleMouseMove, handleMouseUp]);
 
   useEffect(() => {
     fetchFiles();
@@ -156,104 +186,119 @@ function App() {
         </Toolbar>
       </AppBar>
 
-      <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
-        <Grid container sx={{ height: '100%' }}>
-          {/* Left Panel */}
-          <Grid item xs={12} md={4} sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            p: 2,
-            borderRight: { md: '1px solid #ddd' },
-            height: '100%',
-            overflowY: 'auto'
-          }}>
-            <Paper sx={{ p: 2, flexGrow: 1, overflowY: 'auto' }}>
-              <Typography variant="h6" gutterBottom>
-                Available Files
-              </Typography>
-               {filesLoading ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-                  <CircularProgress />
-                </Box>
-              ) : filesError ? (
-                <Typography color="error">{filesError}</Typography>
-              ) : (Object.values(groupedFiles).every(arr => arr.length === 0)) ? (
-                <Typography variant="body2">No available files found.</Typography>
-              ) : (
-                <List component="nav" dense>
-                  {Object.entries(groupedFiles).map(([category, files]) => (
-                    (files && files.length > 0) && (
-                      <React.Fragment key={category}>
-                        <ListItem button onClick={() => handleCategoryClick(category)}>
-                          <ListItemText primary={`${category} (${files.length})`} />
-                          {openCategories[category] ? <ExpandLess /> : <ExpandMore />}
-                        </ListItem>
-                        <Collapse in={openCategories[category]} timeout="auto" unmountOnExit>
-                          <List component="div" disablePadding dense>
-                            {files.map((file, index) => (
-                              <ListItem key={index} sx={{ pl: 4 }}>
-                                <ListItemText primary={file} primaryTypographyProps={{ style: { whiteSpace: "normal" } }}/>
-                              </ListItem>
-                            ))}
-                          </List>
-                        </Collapse>
-                      </React.Fragment>
-                    )
-                  ))}
-                </List>
-              )}
-            </Paper>
-          </Grid>
+      <Box sx={{ flexGrow: 1, overflow: 'hidden', display: 'flex' }}>
+        {/* Left Panel */}
+        <Box sx={{
+          width: `${panelWidth}px`,
+          flexShrink: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          overflowY: 'auto',
+          p: 2
+        }}>
+          <Paper sx={{ p: 2, flexGrow: 1, overflowY: 'auto' }}>
+            <Typography variant="h6" gutterBottom>
+              Available Files
+            </Typography>
+             {filesLoading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                <CircularProgress />
+              </Box>
+            ) : filesError ? (
+              <Typography color="error">{filesError}</Typography>
+            ) : (Object.values(groupedFiles).every(arr => arr.length === 0)) ? (
+              <Typography variant="body2">No available files found.</Typography>
+            ) : (
+              <List component="nav" dense>
+                {Object.entries(groupedFiles).map(([category, files]) => (
+                  (files && files.length > 0) && (
+                    <React.Fragment key={category}>
+                      <ListItem button onClick={() => handleCategoryClick(category)}>
+                        <ListItemText primary={`${category} (${files.length})`} />
+                        {openCategories[category] ? <ExpandLess /> : <ExpandMore />}
+                      </ListItem>
+                      <Collapse in={openCategories[category]} timeout="auto" unmountOnExit>
+                        <List component="div" disablePadding dense>
+                          {files.map((file, index) => (
+                            <ListItem key={index} sx={{ pl: 4 }}>
+                              <ListItemText primary={file} primaryTypographyProps={{ style: { whiteSpace: "normal" } }}/>
+                            </ListItem>
+                          ))}
+                        </List>
+                      </Collapse>
+                    </React.Fragment>
+                  )
+                ))}
+              </List>
+            )}
+          </Paper>
+        </Box>
 
-          {/* Right Panel */}
-          <Grid item xs={12} md={8} sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: 2 }}>
-            <Paper component="form" onSubmit={handleSubmit} sx={{ p: 2, flexShrink: 0, mb: 2 }}>
-              <Typography variant="h6" gutterBottom>
-                Query Agent
-              </Typography>
-              <TextField
-                fullWidth
-                multiline
-                rows={4}
-                variant="outlined"
-                placeholder="e.g., 'Parse survey_3d.sgy and extract geometry'"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                sx={{ mb: 2 }}
-              />
-              <Button
-                variant="contained"
-                endIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
-                type="submit"
-                disabled={loading}
-              >
-                Submit Query
-              </Button>
-            </Paper>
+        {/* Resizable Divider */}
+        <Box
+          onMouseDown={handleMouseDown}
+          sx={{
+            width: '8px',
+            cursor: 'col-resize',
+            backgroundColor: isDragging ? '#005A9C' : 'transparent',
+            borderLeft: '1px solid #ddd',
+            borderRight: '1px solid #ddd',
+            transition: 'background-color 0.2s',
+            '&:hover': {
+              backgroundColor: '#e0e0e0'
+            }
+          }}
+        />
 
-            <Paper sx={{ p: 2, flexGrow: 1, overflowY: 'auto', bgcolor: '#282c34' }}>
-              <Typography variant="h6" gutterBottom sx={{ color: 'white' }}>
-                Response
-              </Typography>
-              {loading && !response && (
-                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                  <CircularProgress />
-                </Box>
-              )}
-              {response && (
-                 <Box sx={{
-                      bgcolor: '#282c34',
-                      borderRadius: 1,
-                      p: 1
-                    }}>
-                  <SyntaxHighlighter language="text" style={atomOneDark} wrapLongLines={true} customStyle={{ margin: 0, padding: '1rem', backgroundColor: '#282c34' }}>
-                    {String(response)}
-                  </SyntaxHighlighter>
-                </Box>
-              )}
-            </Paper>
-          </Grid>
-        </Grid>
+        {/* Right Panel */}
+        <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100%', p: 2, minWidth: 0 }}>
+          <Paper component="form" onSubmit={handleSubmit} sx={{ p: 2, flexShrink: 0, mb: 2 }}>
+            <Typography variant="h6" gutterBottom>
+              Query Agent
+            </Typography>
+            <TextField
+              fullWidth
+              multiline
+              rows={4}
+              variant="outlined"
+              placeholder="e.g., 'Parse survey_3d.sgy and extract geometry'"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              sx={{ mb: 2 }}
+            />
+            <Button
+              variant="contained"
+              endIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
+              type="submit"
+              disabled={loading}
+            >
+              Submit Query
+            </Button>
+          </Paper>
+
+          <Paper sx={{ p: 2, flexGrow: 1, overflowY: 'auto', bgcolor: '#282c34' }}>
+            <Typography variant="h6" gutterBottom sx={{ color: 'white' }}>
+              Response
+            </Typography>
+            {loading && !response && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                <CircularProgress />
+              </Box>
+            )}
+            {response && (
+               <Box sx={{
+                    bgcolor: '#282c34',
+                    borderRadius: 1,
+                    p: 1
+                  }}>
+                <SyntaxHighlighter language="text" style={atomOneDark} wrapLongLines={true} customStyle={{ margin: 0, padding: '1rem', backgroundColor: '#282c34' }}>
+                  {String(response)}
+                </SyntaxHighlighter>
+              </Box>
+            )}
+          </Paper>
+        </Box>
       </Box>
 
       <Dialog open={helpOpen} onClose={() => setHelpOpen(false)} maxWidth="lg" fullWidth>
