@@ -680,7 +680,7 @@ class ToolExecutingHybridAgent:
 
     def _format_segy_analysis(self, data: Dict[str, Any]) -> str:
         """Format SEG-Y analysis results."""
-        return f\"\"\"
+        return f"""
 ## SEG-Y Analysis Results
 **File:** {data.get('file_processed', 'Unknown')}
 **Survey Characteristics:**
@@ -696,11 +696,11 @@ class ToolExecutingHybridAgent:
 {self._format_quality_issues(data.get('quality_analysis', {}))}
 **Processing Notes:**
 {chr(10).join(data.get('processing_notes', []))}
-\"\"\"
+"""
 
     def _format_quality_analysis(self, data: Dict[str, Any]) -> str:
         """Format quality analysis results."""
-        return f\"\"\"
+        return f"""
 ## Quality Analysis Results
 **Overall Rating:** {data.get('quality_rating', 'Unknown')}
 **Key Metrics:**
@@ -709,11 +709,11 @@ class ToolExecutingHybridAgent:
 - Zero Percentage: {data.get('zero_percentage', 'N/A')}%
 **Issues and Recommendations:**
 {self._format_quality_issues(data)}
-\"\"\"
+"""
 
     def _format_las_analysis(self, data: Dict[str, Any]) -> str:
         """Format LAS analysis results."""
-        return f\"\"\"
+        return f"""
 ## Well Log Analysis Results
 **Well:** {data.get('well_name', 'Unknown')}
 **File:** {data.get('file_processed', 'Unknown')}
@@ -723,7 +723,7 @@ class ToolExecutingHybridAgent:
 - Shale Volume: {data.get('shale_volume', 'N/A')}%
 **Pay Zones:** {len(data.get('pay_zones', []))} identified
 **Quality Assessment:** {data.get('quality_rating', 'Unknown')}
-\"\"\"
+"""
 
     def _format_quality_issues(self, quality_data: Dict[str, Any]) -> str:
         """Format quality issues and warnings."""
