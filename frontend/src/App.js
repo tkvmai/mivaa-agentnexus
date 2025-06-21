@@ -43,6 +43,7 @@ import {
   History as HistoryIcon,
   SmartToy as SmartToyIcon,
   Menu as MenuIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material';
 import axios from 'axios';
 import SyntaxHighlighter from 'react-syntax-highlighter';
@@ -253,7 +254,14 @@ function App() {
 
   const drawerContent = (
     <>
-      <Paper sx={{ p: 2, flex: '0 1 50%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+      {isMobile && (
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: -1, mr: -1 }}>
+          <IconButton onClick={handleDrawerToggle}>
+            <CloseIcon />
+          </IconButton>
+        </Box>
+      )}
+      <Paper sx={{ p: 2, flex: '0 1 50%', overflowY: 'auto', display: 'flex', flexDirection: 'column', ...(!isMobile && { mt: 2 }) }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
           <DescriptionIcon sx={{ mr: 1 }} />
           <Typography variant="h6">Available Files</Typography>
