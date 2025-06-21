@@ -381,7 +381,22 @@ function App() {
                           <ListItemText
                             primary={session.title}
                             secondary={`${new Date(session.timestamp).toLocaleString()}`}
-                            primaryTypographyProps={{ sx: { textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' } }}
+                            primaryTypographyProps={{ 
+                              sx: { 
+                                textOverflow: 'ellipsis', 
+                                overflow: 'hidden', 
+                                whiteSpace: 'nowrap',
+                                pr: 2
+                              } 
+                            }}
+                            secondaryTypographyProps={{ 
+                              sx: { 
+                                textOverflow: 'ellipsis', 
+                                overflow: 'hidden', 
+                                whiteSpace: 'nowrap',
+                                pr: 2
+                              } 
+                            }}
                           />
                         </ListItem>
                       ))}
