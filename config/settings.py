@@ -27,7 +27,7 @@ class A2AConfig:
 @dataclass
 class MCPConfig:
     """MCP Server Configuration"""
-    port: int = 7000
+    port: int = 7001
     host: str = "localhost"
     timeout: int = 30
 
@@ -140,7 +140,7 @@ def load_config() -> Config:
 
         # MCP configuration
         mcp=MCPConfig(
-            port=int(os.getenv("MCP_PORT", "7000")),
+            port=int(os.getenv("MCP_PORT", "7001")),
             host=os.getenv("MCP_HOST", "localhost")
         ),
 
