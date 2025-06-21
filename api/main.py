@@ -80,8 +80,10 @@ async def list_files():
         
         # Ensure the final result is in the format the frontend expects
         if isinstance(final_content, dict) and 'content' in final_content:
+            print(f"FINAL CHECK: Sending content to frontend: {final_content}") # Final check
             return final_content
         else:
+            print(f"FINAL CHECK: Unwrapping failed, sending empty list.") # Final check
             # If unwrapping fails to find the expected dict, return a default
             return {"content": []}
 
