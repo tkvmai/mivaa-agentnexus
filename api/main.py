@@ -98,12 +98,8 @@ async def process_query(query_request: QueryRequest, request: Request):
     history.append({"role": "user", "content": query})
 
     try:
-        # The agent now receives the complete history, including the latest query
-        response_text = await agent.run(
-            query=query,
-            chat_history=history, # History now includes the current query
-            conversation_id=conversation_id
-        )
+        # Call the agent with the original simple format (no session parameters)
+        response_text = agent.run(query)
 
         # Update history with the agent's response for the next turn
         history.append({"role": "assistant", "content": response_text})
@@ -116,6 +112,8 @@ async def process_query(query_request: QueryRequest, request: Request):
         return {"history": history, "conversation_id": conversation_id}
         
     except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
         logger.error(f"Error processing query for conversation {conversation_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred while processing the query.")
 

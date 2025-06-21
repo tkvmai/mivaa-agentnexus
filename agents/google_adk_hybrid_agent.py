@@ -385,123 +385,119 @@ You: [CALLS system_status(query="")]
 Then: Present the status information
 
 **REMEMBER: Always provide ALL required parameters when calling tools!**
-"""
 
-    async def _execute_with_google_adk(self, query: str, chat_history: Optional[List[Dict]] = None, conversation_id: str = None) -> str:
-        """
-        Executes the query using the Google ADK Runner, now with session/history support.
-        """
-        self.stats["total_invocations"] += 1
+Available tools: list_files, system_status, health_check, directory_info, las_parser, las_analysis, formation_evaluation, well_correlation, segy_parser, segy_classify, segy_qc, quick_segy_summary."""
+
+    async def _execute_with_google_adk(self, query: str) -> str:
+        """Execute query using Google ADK with tool execution"""
         await self._ensure_google_adk_ready()
 
-        if self._initialization_error:
-            self.stats["failed_invocations"] += 1
-            return f"Google ADK is not available: {self._initialization_error}"
+        # Create message for Google ADK
+        content = types.Content(
+            role='user',
+            parts=[types.Part(text=query)]
+        )
+
+        tool_calls_made = []
+        final_response = ""
 
         try:
-            session_id = conversation_id or f"session-{os.urandom(16).hex()}"
-            self.logger.info(f"Using session ID: {session_id} for query: '{query}'")
-            
-            # Load existing session or create a new one. `load_session` creates one if it doesn't exist.
-            session = await self.session_service.load_session(session_id)
+            # Execute through Google ADK runner
+            async for event in self.runner.run_async(
+                user_id="hybrid_user",
+                session_id=self.session_id,
+                new_message=content
+            ):
+                self.logger.debug(f"Event type: {type(event).__name__}")
 
-            # Always ensure the latest history is reflected in the session.
-            # We clear and rebuild the history from the chat_history object on each turn.
-            # This is inefficient but guarantees correctness and avoids state mismatches.
-            if chat_history:
-                session.history.clear()
-                self.logger.debug(f"Rebuilding session {session_id} with {len(chat_history)} messages.")
-                for message in chat_history:
-                    # The role mapping should be 'user' for user and 'model' for assistant
-                    role = "user" if message.get("role") == "user" else "model"
-                    session.add_message(types.Message(content=message.get("content", ""), role=role))
-            
-            response_future = self.runner.run(session_id, query)
-            response_generator = await response_future
+                # Track tool calls and get response
+                if hasattr(event, 'content') and event.content and event.content.parts:
+                    final_response = event.content.parts[0].text
+                elif hasattr(event, 'text') and event.text:
+                    final_response = event.text
 
-            final_response = ""
-            async for chunk in response_generator:
-                if chunk.text:
-                    final_response += chunk.text
-            
-            # Save the final state of the session
-            final_session = await self.session_service.load_session(session_id)
-            # The runner should have added the agent's response, but we add it just in case
-            if not final_session.history or final_session.history[-1].content != final_response:
-                final_session.add_message(types.Message(content=final_response, role="model"))
-            await self.session_service.save_session(session_id, final_session)
+                # Enhanced tool call detection
+                if hasattr(event, 'actions') and event.actions:
+                    for action in event.actions:
+                        if hasattr(action, 'tool_call') and action.tool_call:
+                            tool_calls_made.append({
+                                'tool': action.tool_call.name,
+                                'arguments': getattr(action.tool_call, 'parameters', {})
+                            })
+                            self.logger.info(f"Tool call detected: {action.tool_call.name}")
 
+                # Alternative tool call detection
+                if hasattr(event, 'tool_call') and event.tool_call:
+                    tool_calls_made.append({
+                        'tool': event.tool_call.name,
+                        'arguments': getattr(event.tool_call, 'parameters', {})
+                    })
+                    self.logger.info(f"Direct tool call detected: {event.tool_call.name}")
 
-            self.stats["successful_invocations"] += 1
-            self.logger.info(f"Google ADK execution successful for query: '{query}'")
-            return final_response if final_response else "No output from agent."
+            # Update statistics
+            self.stats["tool_executions"] += len(tool_calls_made)
+
+            if tool_calls_made:
+                self.logger.info(f"Successfully detected {len(tool_calls_made)} tool calls")
+            else:
+                # Check if our internal MCP calls were made
+                if "Executing list_files" in str(final_response) or "Found" in str(final_response):
+                    self.logger.info("Tool execution detected through MCP calls")
+                    self.stats["tool_executions"] += 1
+                else:
+                    self.logger.warning("No tools were executed - agent may need stronger instructions")
+
+            return final_response or "Analysis completed."
 
         except Exception as e:
-            self.stats["failed_invocations"] += 1
-            self.logger.error(f"Google ADK execution failed for query '{query}': {e}", exc_info=True)
+            self.logger.error(f"Google ADK execution error: {e}")
             return self._minimal_fallback(query)
 
     def _minimal_fallback(self, query: str) -> str:
-        """A minimal fallback that attempts to directly call a tool."""
+        """Minimal fallback when Google ADK fails"""
         import re
 
         query_lower = query.lower()
-        
-        # Try to extract a filename
-        file_match = re.search(r'([a-zA-Z0-9_\-]+\.(las|sgy|segy))', query_lower)
-        file_path = file_match.group(1) if file_match else "no_file_found"
 
-        # Simple tool routing based on keywords
-        if "list" in query_lower or "show" in query_lower:
-            return self._execute_mcp_tool('list_files', '*')
-        elif ".las" in query_lower:
-            if "evaluate" in query_lower or "formation" in query_lower:
-                return self._execute_mcp_tool('formation_evaluation', file_path)
-            elif "analyze" in query_lower:
-                return self._execute_mcp_tool('las_analysis', file_path)
-            elif "correlate" in query_lower:
-                return self._execute_mcp_tool('well_correlation', file_path)
-            elif "quality" in query_lower or "qc" in query_lower:
-                 return self._execute_mcp_tool('las_qc', file_path)
-            else: # Default to parser
-                return self._execute_mcp_tool('las_parser', file_path)
-        elif ".sgy" in query_lower or ".segy" in query_lower:
-            if "classify" in query_lower:
-                return self._execute_mcp_tool('segy_classify', file_path)
-            elif "analyze" in query_lower:
-                return self._execute_mcp_tool('segy_analysis', file_path)
-            elif "quality" in query_lower or "qc" in query_lower:
-                return self._execute_mcp_tool('segy_qc', file_path)
-            else: # Default to parser
-                return self._execute_mcp_tool('segy_parser', file_path)
+        # Direct tool execution fallback
+        if "list files" in query_lower or "list" in query_lower:
+            # Extract pattern if any
+            pattern_match = re.search(r'\*\.[a-z]+|\*[a-z0-9_]+\*?|[a-z0-9_]+\*', query, re.IGNORECASE)
+            pattern = pattern_match.group(0) if pattern_match else "*"
+            return self._execute_mcp_tool('list_files', pattern)
         elif "status" in query_lower:
             return self._execute_mcp_tool('system_status', '')
         elif "health" in query_lower:
             return self._execute_mcp_tool('health_check', '')
         else:
-            return f"Agent failed. No fallback for query: '{query}'"
+            return f"I encountered a technical issue with Google ADK. Try asking for 'list files' or 'system status'."
 
-    async def invoke(self, input_dict: Dict[str, Any]) -> Dict[str, str]:
-        """
-        Invoke the agent. This is the entry point for LangChain compatibility.
-        Now handles chat_history and conversation_id.
-        """
-        query = input_dict.get("input")
-        chat_history = input_dict.get("chat_history")
-        conversation_id = input_dict.get("conversation_id")
+    def invoke(self, input_dict: Dict[str, str]) -> Dict[str, str]:
+        """Main invoke method"""
+        self.stats["total_invocations"] += 1
 
-        if not query:
-            return {"output": "Error: Input dictionary must contain a non-empty 'input' key."}
+        try:
+            query = input_dict.get("input", "")
+            if not query:
+                return {"output": "No input provided"}
 
-        response = await self._execute_with_google_adk(
-            query, 
-            chat_history=chat_history, 
-            conversation_id=conversation_id
-        )
-        return {"output": response}
+            self.logger.info(f"Processing query: {query[:100]}...")
+
+            # Execute with Google ADK tool execution
+            response = asyncio.run(self._execute_with_google_adk(query))
+
+            self.stats["successful_invocations"] += 1
+            return {"output": response}
+
+        except Exception as e:
+            self.stats["failed_invocations"] += 1
+            self.logger.error(f"Execution error: {e}")
+
+            error_response = f"Technical error during analysis: {str(e)[:200]}{'...' if len(str(e)) > 200 else ''}"
+            return {"output": error_response}
 
     async def _ensure_google_adk_ready(self):
-        """Initializes Google ADK components if not already done."""
+        """Ensure Google ADK is initialized"""
         if self._google_adk_ready:
             return True
 
@@ -574,183 +570,46 @@ class ToolExecutingHybridAgent:
             "system_type": "Google ADK Agent with Tool Execution"
         }
 
-    async def run(self, query: str = None, chat_history: List[Dict[str, str]] = None, conversation_id: str = None) -> str:
-        """
-        Process a query or chat history using the Google ADK agent.
-        Now uses conversation_id to manage state.
-        """
-        self.logger.debug(f"ToolExecutingHybridAgent received a run call with conversation_id: {conversation_id}")
-        
-        current_query = query
-        if not current_query:
-            if chat_history:
-                current_query = next((m['content'] for m in reversed(chat_history) if m['role'] == 'user'), None)
-            if not current_query:
-                 return "Error: Could not find user query in history or query parameter."
+    def run(self, query: str) -> str:
+        """Process query with tool execution"""
+        self.stats["total_queries"] += 1
+        self.logger.debug(f"Processing: {query[:100]}...")
 
-        if not current_query:
-            raise ValueError("run() requires 'query' or a non-empty 'chat_history'.")
+        # Minimal direct command processing (only for obvious system commands)
+        if self._is_obvious_system_command(query):
+            try:
+                direct_result = self.command_processor(query)
+                if direct_result:
+                    self.stats["direct_commands"] += 1
+                    return direct_result
+            except Exception as e:
+                self.logger.debug(f"Direct command failed: {e}")
 
-        # The executor now handles history via the conversation_id
-        input_data = {
-            "input": current_query,
-            "conversation_id": conversation_id,
-            "chat_history": chat_history or [] 
-        }
-        
-        # Fallback for simple commands
-        if self._is_obvious_system_command(current_query):
-            self.logger.debug("Handling as an obvious system command.")
-            return await self.agent_executor.invoke(input_data)
-
-        # Main execution path
+        # Let the agent execute tools
         try:
-            result = await self.agent_executor.invoke(input_data)
-            # The response from Google ADK is typically a dict with an 'output' key
-            output = result.get("output", str(result))
-            return self._format_agent_response(output)
+            result = self.agent_executor.invoke({"input": query})
+
+            if isinstance(result, dict):
+                output = result.get("output", str(result))
+            else:
+                output = str(result)
+
+            self.stats["agent_responses"] += 1
+            return output
+
         except Exception as e:
-            self.logger.error(f"Error during agent execution: {e}", exc_info=True)
-            return f"An error occurred: {e}"
+            self.logger.warning(f"Agent execution failed: {e}")
+            self.stats["errors"] += 1
+            return f"I encountered a technical issue while processing your request. Error: {str(e)[:200]}{'...' if len(str(e)) > 200 else ''}"
 
     def _is_obvious_system_command(self, query: str) -> bool:
-        """Check for simple system commands that don't need complex reasoning"""
+        """Check if this is an obvious system command"""
         query_lower = query.lower().strip()
         obvious_commands = ["system status", "health check", "status", "health"]
         return query_lower in obvious_commands
-        
-    def _format_agent_response(self, response: str) -> str:
-        """Format agent response for better readability."""
-        if self._is_json_response(response):
-            return self._format_json_response(response)
-        return response
-
-    def _is_json_response(self, response: str) -> bool:
-        """Check if response is raw JSON."""
-        if isinstance(response, str):
-            stripped = response.strip()
-            return (stripped.startswith('{') and stripped.endswith('}')) or \
-                   (stripped.startswith('[') and stripped.endswith(']'))
-        return False
-
-    def _format_json_response(self, json_str: str) -> str:
-        """Convert JSON response to human-readable format, handling nested JSON."""
-        try:
-            data = json.loads(json_str)
-
-            if isinstance(data, dict) and 'text' in data and isinstance(data['text'], str):
-                try:
-                    return self._format_json_response(data['text'])
-                except json.JSONDecodeError:
-                    pass
-
-            if isinstance(data, dict):
-                if 'file_info' in data and 'curve_issues' in data:
-                    return self._format_las_qc(data)
-                if 'file_processed' in data and 'survey_type' in data:
-                    return self._format_segy_analysis(data)
-                elif 'quality_rating' in data and not ('file_processed' in data):
-                    return self._format_quality_analysis(data)
-                elif 'well_name' in data:
-                    return self._format_las_analysis(data)
-
-            return json.dumps(data, indent=2)
-        except json.JSONDecodeError:
-            return json_str
-
-    def _format_las_qc(self, data: Dict[str, Any]) -> str:
-        """Format LAS quality control results into a readable report."""
-        output = []
-        file_info = data.get('file_info', {})
-        output.append("## LAS File Quality Control Report")
-        output.append(f"**File:** {file_info.get('filename', 'N/A')}")
-        output.append("\n### File Summary")
-        output.append(f"- **Parsing Method:** {file_info.get('parsing_method', 'N/A')}")
-        output.append(f"- **Curve Count:** {file_info.get('curve_count', 'N/A')}")
-        output.append(f"- **Total Data Points:** {file_info.get('data_points', 'N/A'):,}")
-        issues = data.get('issues', [])
-        if issues:
-            output.append("\n### General Issues")
-            for issue in issues:
-                output.append(f"- {issue.get('severity', 'info').upper()}: {issue.get('message', '')}")
-        curve_issues = data.get('curve_issues', {})
-        if curve_issues:
-            output.append("\n### Curve-Specific Issues")
-            for curve, issue_list in curve_issues.items():
-                if issue_list:
-                    output.append(f"- **{curve}:**")
-                    for issue in issue_list:
-                        output.append(f"  - {issue.get('severity', 'info').capitalize()}: {issue.get('message', '')}")
-        if not issues and not curve_issues:
-            output.append("\n**No quality issues detected.**")
-        return "\n".join(output)
-
-    def _format_segy_analysis(self, data: Dict[str, Any]) -> str:
-        """Format SEG-Y analysis results."""
-        return f"""
-## SEG-Y Analysis Results
-**File:** {data.get('file_processed', 'Unknown')}
-**Survey Characteristics:**
-- Survey Type: {data.get('survey_type', 'Unknown')}
-- Stack Type: {data.get('stack_type', 'Unknown')}
-- Quality Rating: {data.get('quality_rating', 'Unknown')}
-**Technical Details:**
-- Total Traces: {data.get('total_traces', 0):,}
-- Sample Rate: {data.get('sample_rate_ms', 0)} ms
-- File Size: {data.get('file_size_mb', 0)} MB
-- Trace Length: {data.get('trace_length_ms', 0)} ms
-**Quality Assessment:**
-{self._format_quality_issues(data.get('quality_analysis', {}))}
-**Processing Notes:**
-{chr(10).join(data.get('processing_notes', []))}
-"""
-
-    def _format_quality_analysis(self, data: Dict[str, Any]) -> str:
-        """Format quality analysis results."""
-        return f"""
-## Quality Analysis Results
-**Overall Rating:** {data.get('quality_rating', 'Unknown')}
-**Key Metrics:**
-- Dynamic Range: {data.get('dynamic_range_db', 'N/A')} dB
-- Signal-to-Noise: {data.get('signal_to_noise', 'N/A')}
-- Zero Percentage: {data.get('zero_percentage', 'N/A')}%
-**Issues and Recommendations:**
-{self._format_quality_issues(data)}
-"""
-
-    def _format_las_analysis(self, data: Dict[str, Any]) -> str:
-        """Format LAS analysis results."""
-        return f"""
-## Well Log Analysis Results
-**Well:** {data.get('well_name', 'Unknown')}
-**File:** {data.get('file_processed', 'Unknown')}
-**Formation Evaluation:**
-- Average Porosity: {data.get('average_porosity', 'N/A')}%
-- Water Saturation: {data.get('water_saturation', 'N/A')}%
-- Shale Volume: {data.get('shale_volume', 'N/A')}%
-**Pay Zones:** {len(data.get('pay_zones', []))} identified
-**Quality Assessment:** {data.get('quality_rating', 'Unknown')}
-"""
-
-    def _format_quality_issues(self, quality_data: Dict[str, Any]) -> str:
-        """Format quality issues and warnings."""
-        output = []
-        issues = quality_data.get('issues', [])
-        if issues:
-            output.append("**Issues Found:**")
-            for issue in issues:
-                output.append(f"- {issue.get('message', str(issue))}")
-        warnings = quality_data.get('warnings', [])
-        if warnings:
-            output.append("**Warnings:**")
-            for warning in warnings:
-                output.append(f"- {warning.get('message', str(warning))}")
-        if not issues and not warnings:
-            output.append("No quality issues detected.")
-        return chr(10).join(output)
 
     def get_stats(self) -> Dict[str, Any]:
-        """Return statistics from the agent executor"""
+        """Get statistics"""
         self.stats["uptime_hours"] = (time.time() - self._start_time) / 3600
 
         if hasattr(self.agent_executor, 'get_stats'):
