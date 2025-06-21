@@ -36,6 +36,9 @@ import {
   ExpandLess,
   ExpandMore,
   HelpOutline as HelpIcon,
+  Description as DescriptionIcon,
+  History as HistoryIcon,
+  SmartToy as SmartToyIcon,
 } from '@mui/icons-material';
 import axios from 'axios';
 import SyntaxHighlighter from 'react-syntax-highlighter';
@@ -290,9 +293,12 @@ function App() {
           gap: 2
         }}>
           <Paper sx={{ p: 2, flex: '1 1 50%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-            <Typography variant="h6" gutterBottom>
-              Available Files
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+              <DescriptionIcon sx={{ mr: 1 }} />
+              <Typography variant="h6">
+                Available Files
+              </Typography>
+            </Box>
              {filesLoading ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
                 <CircularProgress />
@@ -328,7 +334,10 @@ function App() {
             )}
           </Paper>
           <Paper sx={{ p: 2, flex: '1 1 50%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-            <Typography variant="h6" gutterBottom>Sessions</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+              <HistoryIcon sx={{ mr: 1 }} />
+              <Typography variant="h6">Sessions</Typography>
+            </Box>
             <List component="nav" dense sx={{ overflowY: 'auto', flexGrow: 1, p:0 }}>
               {Object.entries(groupedSessions).map(([groupName, sessionItems]) => (
                 <React.Fragment key={groupName}>
@@ -404,9 +413,12 @@ function App() {
         <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100%', p: 2, minWidth: 0 }}>
           <Paper component="form" onSubmit={handleSubmit} sx={{ p: 2, flexShrink: 0, mb: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-              <Typography variant="h6" component="div">
-                Query Agent
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <SmartToyIcon sx={{ mr: 1 }} />
+                <Typography variant="h6" component="div">
+                  Query Agent
+                </Typography>
+              </Box>
               <Button
                 variant="outlined"
                 startIcon={<HelpIcon />}
