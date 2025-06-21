@@ -88,7 +88,8 @@ class MCPServerManager(BaseServer, HealthCheckMixin):
             raise RuntimeError("MCP server not created")
 
         def run_mcp_server():
-            self.mcp_server.run(host=self.host, port=self.port)
+            # Force host to 0.0.0.0 for Docker compatibility
+            self.mcp_server.run(host="0.0.0.0", port=self.port)
 
         self.run_in_thread(run_mcp_server)
 
