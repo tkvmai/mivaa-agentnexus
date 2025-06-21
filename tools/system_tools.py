@@ -203,7 +203,6 @@ def create_system_tools(mcp_server, data_config: DataConfig) -> List[str]:
                 return {"text": formatted_output}
             else:
                 all_filenames = [os.path.basename(p) for p in file_paths]
-                print(f"DEBUG: Found {len(all_filenames)} files in tool: {all_filenames[:5]}") # Log the found files
                 # Wrap the content in a dictionary and then dump to a JSON string
                 # This matches the pattern of other tools in the framework.
                 content_payload = {"content": all_filenames}

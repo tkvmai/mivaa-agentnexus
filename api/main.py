@@ -47,26 +47,43 @@ async def get_status():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+def unwrap_mcp_response(data):
+    """
+    Recursively unwraps the deeply nested response from the MCP server
+    until the actual content is found.
+    """
+    if isinstance(data, dict):
+        if 'content' in data and isinstance(data['content'], list) and data['content']:
+             # This is the common case for the outer wrapper
+            return unwrap_mcp_response(data['content'][0])
+        elif 'text' in data and isinstance(data['text'], str):
+             # This handles the inner text payload
+            try:
+                # Try to parse the text as JSON and recurse
+                return unwrap_mcp_response(json.loads(data['text']))
+            except json.JSONDecodeError:
+                 # If it's not JSON, it might be the final value
+                 return data['text']
+        elif 'content' in data:
+            # This handles the final payload, e.g. {"content": [...]}
+            return data
+    return data # Fallback for unexpected formats
+
 @app.get("/api/files")
 async def list_files():
     try:
         mcp_client = platform.get_mcp_server()
-        result = mcp_client.call_tool("list_files", "*")
-        print(f"DEBUG: Raw result from tool: {result}") # Log raw tool output
-
-        # The tool returns a dictionary with a 'text' key containing a JSON string.
-        # We need to parse this before sending it to the frontend.
-        if 'text' in result and isinstance(result['text'], str):
-            # Parse the JSON string to get the actual content
-            content = json.loads(result['text'])
-            print(f"DEBUG: Parsed content to be returned: {content}") # Log final content
-            return content  # This will be {"content": [...]}
-        elif 'content' in result:
-             # Handle case where it might already be parsed
-             return result
+        raw_result = mcp_client.call_tool("list_files", "*")
+        
+        # Use the robust unwrapping function to get the clean content
+        final_content = unwrap_mcp_response(raw_result)
+        
+        # Ensure the final result is in the format the frontend expects
+        if isinstance(final_content, dict) and 'content' in final_content:
+            return final_content
         else:
-             # If the format is unexpected, return an empty list for now.
-             return {"content": []}
+            # If unwrapping fails to find the expected dict, return a default
+            return {"content": []}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
