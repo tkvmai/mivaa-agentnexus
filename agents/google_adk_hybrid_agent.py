@@ -388,7 +388,7 @@ Then: Present the status information
 
 Available tools: list_files, system_status, health_check, directory_info, las_parser, las_analysis, formation_evaluation, well_correlation, segy_parser, segy_classify, segy_qc, quick_segy_summary."""
 
-    async def _execute_with_google_adk(self, query: str, chat_history: Optional[List[Dict]] = None) -> str:
+    async def _execute_with_google_adk(self, query: str, chat_history: Optional[List[Dict]] = None, conversation_id: str = None) -> str:
         """
         Executes the query using the Google ADK Runner, now with session/history support.
         """
@@ -400,24 +400,20 @@ Available tools: list_files, system_status, health_check, directory_info, las_pa
             return f"Google ADK is not available: {self._initialization_error}"
 
         try:
-            # Use a new session for each distinct conversation to maintain context
-            if chat_history:
-                # Re-construct session from history
-                self.session_id = f"session-{hash(str(chat_history))}"
-                session = await self.session_service.load_session(self.session_id)
-                if not session.history:
-                     for message in chat_history:
-                        role = "user" if message["role"] == "user" else "model"
-                        session.add_message(types.Message(content=message["content"], role=role))
-                     await self.session_service.save_session(self.session_id, session)
+            session_id = conversation_id or f"session-{os.urandom(16).hex()}"
+            self.logger.info(f"Using session ID: {session_id} for query: '{query}'")
+            
+            # Load existing session or create a new one
+            session = await self.session_service.load_session(session_id)
 
-            else: # Single query
-                self.session_id = f"session-{os.urandom(16).hex()}"
-
-
-            self.logger.info(f"Using session ID: {self.session_id} for query: '{query}'")
-
-            response_future = self.runner.run(self.session_id, query)
+            # If the session is new, populate its history from chat_history
+            if not session.history and chat_history:
+                 self.logger.debug(f"Populating new session {session_id} with {len(chat_history)} messages.")
+                 for message in chat_history:
+                    role = "user" if message["role"] == "user" else "model"
+                    session.add_message(types.Message(content=message["content"], role=role))
+            
+            response_future = self.runner.run(session_id, query)
             response_generator = await response_future
 
             final_response = ""
@@ -426,8 +422,9 @@ Available tools: list_files, system_status, health_check, directory_info, las_pa
                     final_response += chunk.text
             
             # Save the final state of the session
-            final_session = await self.session_service.load_session(self.session_id)
-            await self.session_service.save_session(self.session_id, final_session)
+            final_session = await self.session_service.load_session(session_id)
+            final_session.add_message(types.Message(content=final_response, role="model"))
+            await self.session_service.save_session(session_id, final_session)
 
 
             self.stats["successful_invocations"] += 1
@@ -482,15 +479,20 @@ Available tools: list_files, system_status, health_check, directory_info, las_pa
     async def invoke(self, input_dict: Dict[str, Any]) -> Dict[str, str]:
         """
         Invoke the agent. This is the entry point for LangChain compatibility.
-        Now handles chat_history.
+        Now handles chat_history and conversation_id.
         """
         query = input_dict.get("input")
         chat_history = input_dict.get("chat_history")
+        conversation_id = input_dict.get("conversation_id")
 
         if not query:
             return {"output": "Error: Input dictionary must contain a non-empty 'input' key."}
 
-        response = await self._execute_with_google_adk(query, chat_history=chat_history)
+        response = await self._execute_with_google_adk(
+            query, 
+            chat_history=chat_history, 
+            conversation_id=conversation_id
+        )
         return {"output": response}
 
     async def _ensure_google_adk_ready(self):
@@ -567,30 +569,30 @@ class ToolExecutingHybridAgent:
             "system_type": "Google ADK Agent with Tool Execution"
         }
 
-    async def run(self, query: str = None, chat_history: List[Dict[str, str]] = None) -> str:
+    async def run(self, query: str = None, chat_history: List[Dict[str, str]] = None, conversation_id: str = None) -> str:
         """
         Process a query or chat history using the Google ADK agent.
+        Now uses conversation_id to manage state.
         """
-        self.logger.debug("ToolExecutingHybridAgent received a run call")
-
-        if chat_history:
-            # The last user message is the current query
-            current_query = next((m['content'] for m in reversed(chat_history) if m['role'] == 'user'), None)
+        self.logger.debug(f"ToolExecutingHybridAgent received a run call with conversation_id: {conversation_id}")
+        
+        current_query = query
+        if not current_query:
+            if chat_history:
+                current_query = next((m['content'] for m in reversed(chat_history) if m['role'] == 'user'), None)
             if not current_query:
-                return "Error: Could not find user query in history."
-            
-            # Pass the full history to the executor's invoke method
-            # The executor will need to be updated to handle this
-            input_data = {"input": current_query, "chat_history": chat_history}
-            self.logger.debug(f"Running with chat history, query: '{current_query}'")
+                 return "Error: Could not find user query in history or query parameter."
 
-        elif query:
-            current_query = query
-            input_data = {"input": current_query}
-            self.logger.debug(f"Running with single query: '{current_query}'")
-        else:
-            raise ValueError("run() requires either 'query' or 'chat_history'.")
+        if not current_query:
+            raise ValueError("run() requires 'query' or a non-empty 'chat_history'.")
 
+        # The executor now handles history via the conversation_id
+        input_data = {
+            "input": current_query,
+            "conversation_id": conversation_id,
+            "chat_history": chat_history or [] 
+        }
+        
         # Fallback for simple commands
         if self._is_obvious_system_command(current_query):
             self.logger.debug("Handling as an obvious system command.")

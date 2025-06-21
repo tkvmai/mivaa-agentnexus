@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import sys
@@ -73,42 +73,48 @@ def unwrap_mcp_response(data):
 
     return current_data # Fallback for unexpected formats
 
-@app.post("/api/query", response_model=QueryResponse)
-async def process_query(request: QueryRequest):
-    try:
-        conversation_id = request.conversation_id or str(uuid.uuid4())
+@app.post("/api/query")
+async def process_query(query_request: QueryRequest, request: Request):
+    """
+    Processes a user query, maintaining conversation history.
+    """
+    agent = request.app.state.agent
+    if not agent:
+        raise HTTPException(status_code=500, detail="Agent not initialized")
         
-        # Retrieve history or start a new one
-        history = conversations.get(conversation_id, [])
-        
-        # Add user's new query to history
-        history.append({"role": "user", "content": request.query})
-        
-        # The agent now receives the whole history
-        # Note: We need to ensure the agent's `run` method can handle a `chat_history` argument.
-        # This might require changes in `main.py` or the agent class itself.
-        response_content = await platform.agent.run(chat_history=history)
+    conversation_id = query_request.conversation_id
+    query = query_request.query
 
-        # Add assistant's response to history
-        history.append({"role": "assistant", "content": response_content})
+    if not query:
+        raise HTTPException(status_code=400, detail="Query cannot be empty")
+
+    history = conversations.get(conversation_id, [])
+    
+    # We pass the existing history to the agent, the new query is the main input
+    try:
+        response_text = await agent.run(
+            query=query,
+            chat_history=history, # Pass the history *before* the current query
+            conversation_id=conversation_id
+        )
+
+        # Update history with the user query and the agent's response for the next turn
+        history.append({"role": "user", "content": query})
+        history.append({"role": "assistant", "content": response_text})
+
+        if not conversation_id:
+            conversation_id = str(uuid.uuid4())
         
-        # Store the updated history
         conversations[conversation_id] = history
         
-        return QueryResponse(
-            response=response_content,
-            conversation_id=conversation_id,
-            history=[Message.parse_obj(msg) for msg in history]
-        )
+        return {"history": history, "conversation_id": conversation_id}
+        
     except Exception as e:
-        # It's useful to log the exception here
-        print(f"Error in process_query: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error processing query for conversation {conversation_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred while processing the query.")
 
 @app.get("/api/status")
-async def get_status():
+async def get_status(request: Request):
     try:
         status = platform.get_status()
         return status
