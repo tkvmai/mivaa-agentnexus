@@ -246,13 +246,13 @@ class HybridAgent:
         if issues:
             output.append("**Issues Found:**")
             for issue in issues:
-                output.append(f"- {issue}")
+                output.append(f"- {issue.get('message', str(issue))}")
 
         warnings = quality_data.get('warnings', [])
         if warnings:
             output.append("**Warnings:**")
             for warning in warnings:
-                output.append(f"- {warning}")
+                output.append(f"- {warning.get('message', str(warning))}")
 
         if not issues and not warnings:
             output.append("No quality issues detected.")
