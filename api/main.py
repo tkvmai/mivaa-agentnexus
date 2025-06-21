@@ -36,7 +36,6 @@ app.add_middleware(
 # Initialize platform
 config = load_config()
 platform = SubsurfaceDataPlatform(config)
-platform.initialize()
 
 class Message(BaseModel):
     role: str # 'user' or 'assistant'
@@ -150,7 +149,6 @@ async def startup_event():
     """
     Initialize platform and conversations
     """
-    # platform.initialize() # This is now handled by the dedicated MCP server
     conversations.clear()
     # The main platform object, which holds the agent, still needs to be initialized.
     # We will ensure it's initialized without starting the sub-servers.
