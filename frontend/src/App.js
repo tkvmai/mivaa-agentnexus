@@ -268,8 +268,16 @@ function App() {
           </IconButton>
         </Box>
       )}
-      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, minHeight: 0 }}>
-        <Paper sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 2 }}>
+        {/* Available Files Section */}
+        <Paper sx={{ 
+          p: 2, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          height: '45%', 
+          minHeight: 0,
+          overflow: 'hidden' 
+        }}>
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, flexShrink: 0 }}>
             <DescriptionIcon sx={{ mr: 1 }} />
             <Typography variant="h6">Available Files</Typography>
@@ -281,7 +289,7 @@ function App() {
           ) : (Object.values(groupedFiles).every(arr => arr.length === 0)) ? (
             <Typography variant="body2">No available files found.</Typography>
           ) : (
-            <Box sx={{ flexGrow: 1, overflowY: 'auto' }}>
+            <Box sx={{ flexGrow: 1, overflowY: 'auto', minHeight: 0 }}>
               <List component="nav" dense>
                 {Object.entries(groupedFiles).map(([category, files]) => (
                   (files && files.length > 0) && (
@@ -308,12 +316,21 @@ function App() {
             </Box>
           )}
         </Paper>
-        <Paper sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+
+        {/* Sessions Section */}
+        <Paper sx={{ 
+          p: 2, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          height: '55%', 
+          minHeight: 0,
+          overflow: 'hidden' 
+        }}>
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, flexShrink: 0 }}>
             <HistoryIcon sx={{ mr: 1 }} />
             <Typography variant="h6">Sessions</Typography>
           </Box>
-          <Box sx={{ flexGrow: 1, overflowY: 'auto' }}>
+          <Box sx={{ flexGrow: 1, overflowY: 'auto', minHeight: 0 }}>
             <List component="nav" dense sx={{ p: 0 }}>
               {Object.entries(groupedSessions).map(([groupName, sessionItems]) => (
                 <React.Fragment key={groupName}>
@@ -423,7 +440,6 @@ function App() {
               '& .MuiDrawer-paper': {
                 boxSizing: 'border-box',
                 width: panelWidth,
-                position: 'relative',
                 height: '100%',
                 overflow: 'hidden',
                 p: 2,
