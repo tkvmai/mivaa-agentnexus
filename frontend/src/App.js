@@ -262,13 +262,13 @@ function App() {
   const drawerContent = (
     <>
       {isMobile && (
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: -1, mr: -1 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
           <IconButton onClick={handleDrawerToggle}>
             <CloseIcon />
           </IconButton>
         </Box>
       )}
-      <Paper sx={{ p: 2, flex: '0 1 50%', overflowY: 'auto', display: 'flex', flexDirection: 'column', ...(!isMobile && { mt: 2 }) }}>
+      <Paper sx={{ p: 2, flex: '1 1 50%', overflowY: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
           <DescriptionIcon sx={{ mr: 1 }} />
           <Typography variant="h6">Available Files</Typography>
@@ -305,7 +305,7 @@ function App() {
           </List>
         )}
       </Paper>
-      <Paper sx={{ p: 2, flex: '1 1 50%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+      <Paper sx={{ p: 2, flex: '1 1 50%', overflowY: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
           <HistoryIcon sx={{ mr: 1 }} />
           <Typography variant="h6">Sessions</Typography>
@@ -403,7 +403,7 @@ function App() {
             ModalProps={{ keepMounted: true }}
             sx={{
               display: { xs: 'block', md: 'none' },
-              '& .MuiDrawer-paper': { boxSizing: 'border-box', width: panelWidth, p: 2, gap: 2, display: 'flex', flexDirection: 'column' },
+              '& .MuiDrawer-paper': { boxSizing: 'border-box', width: panelWidth, p: 2, display: 'flex', flexDirection: 'column', gap: 2 },
             }}
           >
             {drawerContent}
@@ -421,8 +421,9 @@ function App() {
                 height: '100%',
                 overflow: 'hidden',
                 p: 2,
-                gap: 2,
+                display: 'flex',
                 flexDirection: 'column',
+                gap: 2,
                 borderRight: '1px solid #ddd'
               },
             }}
