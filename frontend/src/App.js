@@ -268,7 +268,7 @@ function App() {
           </IconButton>
         </Box>
       )}
-      <Paper sx={{ p: 2, height: '50%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <Paper sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, flexShrink: 0 }}>
           <DescriptionIcon sx={{ mr: 1 }} />
           <Typography variant="h6">Available Files</Typography>
@@ -307,7 +307,7 @@ function App() {
           </Box>
         )}
       </Paper>
-      <Paper sx={{ p: 2, height: '50%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <Paper sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, flexShrink: 0 }}>
           <HistoryIcon sx={{ mr: 1 }} />
           <Typography variant="h6">Sessions</Typography>
