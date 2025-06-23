@@ -472,7 +472,7 @@ function App() {
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <SmartToyIcon sx={{ mr: 1 }} />
                 <Typography variant="h6" component="div">
-                  Query 
+                  Query Agent
                 </Typography>
               </Box>
               <Button
