@@ -44,6 +44,7 @@ import {
   SmartToy as SmartToyIcon,
   Menu as MenuIcon,
   Close as CloseIcon,
+  CloudUpload as CloudUploadIcon,
 } from '@mui/icons-material';
 import axios from 'axios';
 import SyntaxHighlighter from 'react-syntax-highlighter';
@@ -91,6 +92,9 @@ function App() {
   const [sessions, setSessions] = useState([]);
   const [selectedSessionId, setSelectedSessionId] = useState(null);
   const [openSessionGroups, setOpenSessionGroups] = useState({});
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
+  const [uploadSuccess, setUploadSuccess] = useState(null);
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -259,6 +263,37 @@ function App() {
     setOpenCategories(prev => ({ ...prev, [category]: !prev[category] }));
   };
 
+  const handleFileUpload = async (event) => {
+    setUploadError(null);
+    setUploadSuccess(null);
+    const file = event.target.files[0];
+    if (!file) return;
+    const allowed = ['.las', '.sgy', '.segy'];
+    const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+    if (!allowed.includes(ext)) {
+      setUploadError('Only .las, .sgy, .segy files are allowed.');
+      return;
+    }
+    if (file.size > 100 * 1024 * 1024) {
+      setUploadError('File too large. Maximum allowed size is 100 MB.');
+      return;
+    }
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      await axios.post(`${API_BASE_URL}/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setUploadSuccess('File uploaded successfully!');
+      fetchFiles();
+    } catch (error) {
+      setUploadError(error.response?.data?.detail || error.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const drawerContent = (
     <>
       {isMobile && (
@@ -315,6 +350,30 @@ function App() {
               </List>
             </Box>
           )}
+          <Box sx={{ mt: 2 }}>
+            <Button
+              variant="contained"
+              component="label"
+              startIcon={<CloudUploadIcon />}
+              fullWidth
+              disabled={uploading}
+              sx={{ mb: 1 }}
+            >
+              {uploading ? 'Uploading...' : 'Upload File'}
+              <input
+                type="file"
+                accept=".las,.sgy,.segy"
+                hidden
+                onChange={handleFileUpload}
+                disabled={uploading}
+              />
+            </Button>
+            {uploadError && <Typography color="error" variant="body2">{uploadError}</Typography>}
+            {uploadSuccess && <Typography color="success.main" variant="body2">{uploadSuccess}</Typography>}
+            <Typography variant="caption" color="textSecondary">
+              Only .las, .sgy, .segy files. Max 100 MB.
+            </Typography>
+          </Box>
         </Paper>
 
         {/* Sessions Section */}

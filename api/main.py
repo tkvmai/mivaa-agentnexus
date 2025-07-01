@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import sys
@@ -232,6 +232,25 @@ async def list_files():
         logger = logging.getLogger(__name__)
         logger.error(f"Unexpected error in list_files: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+@app.post("/api/upload")
+async def upload_file(file: UploadFile = File(...)):
+    # Check extension
+    ext = Path(file.filename).suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Invalid file extension: {ext}. Only .las, .sgy, .segy allowed.")
+
+    # Check file size
+    contents = await file.read()
+    if len(contents) > MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=400, detail="File too large. Maximum allowed size is 100 MB.")
+
+    # Save file
+    save_path = project_root / "data" / file.filename
+    with open(save_path, 'wb') as f:
+        f.write(contents)
+
+    return {"success": True, "filename": file.filename}
 
 @app.on_event("startup")
 async def startup_event():
