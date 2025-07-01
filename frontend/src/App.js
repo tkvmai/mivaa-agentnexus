@@ -390,7 +390,7 @@ function App() {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <CssBaseline />
-      <AppBar position="static" sx={{ backgroundColor: '#005A9C' }}>
+      <AppBar position="fixed" sx={{ backgroundColor: '#005A9C', zIndex: (theme) => theme.zIndex.drawer + 1 }}>
         <Toolbar>
           {isMobile && (
             <IconButton
@@ -413,10 +413,13 @@ function App() {
         </Toolbar>
       </AppBar>
 
-      <Box sx={{ flexGrow: 1, overflow: 'hidden', display: 'flex' }}>
+      {/* Offset for AppBar */}
+      <Toolbar sx={{ minHeight: { xs: 56, sm: 64 } }} />
+
+      <Box sx={{ flexGrow: 1, overflow: 'hidden', display: 'flex', height: 'calc(100vh - 64px)', mt: { xs: 0, sm: 0 } }}>
         <Box
           component="nav"
-          sx={{ width: { md: panelWidth }, flexShrink: { md: 0 } }}
+          sx={{ width: { md: panelWidth }, flexShrink: { md: 0 }, height: '100%' }}
         >
           {/* Mobile Drawer */}
           <Drawer
@@ -426,7 +429,7 @@ function App() {
             ModalProps={{ keepMounted: true }}
             sx={{
               display: { xs: 'block', md: 'none' },
-              '& .MuiDrawer-paper': { boxSizing: 'border-box', width: panelWidth, p: 2, display: 'flex', flexDirection: 'column', gap: 2 },
+              '& .MuiDrawer-paper': { boxSizing: 'border-box', width: panelWidth, p: 2, display: 'flex', flexDirection: 'column', gap: 2, top: 56, height: 'calc(100% - 56px)' },
             }}
           >
             {drawerContent}
@@ -440,13 +443,14 @@ function App() {
               '& .MuiDrawer-paper': {
                 boxSizing: 'border-box',
                 width: panelWidth,
-                height: '100%',
+                height: 'calc(100% - 64px)',
                 overflow: 'hidden',
                 p: 2,
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 2,
-                borderRight: '1px solid #ddd'
+                borderRight: '1px solid #ddd',
+                top: 64,
               },
             }}
             open
