@@ -1,4 +1,5 @@
-FROM node:16-alpine
+#FROM node:16-alpine
+FROM revotech2017/mivaa-agentnexus-frontend:base
 
 WORKDIR /app
 
