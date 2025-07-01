@@ -9,6 +9,10 @@ import uuid
 import atexit
 from datetime import datetime, timedelta
 
+# Allowed file extensions and max upload size
+ALLOWED_EXTENSIONS = {'.las', '.sgy', '.segy'}
+MAX_UPLOAD_SIZE = 100 * 1024 * 1024  # 100 MB
+
 # Add project root to path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
