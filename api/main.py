@@ -53,14 +53,9 @@ def save_sessions():
         json.dump(conversations, f, indent=4)
 
 # CORS configuration
-origins = [
-    "http://localhost:3000",
-    "http://ddns.i2g.cloud:3000",
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],  # Allow all origins for debugging
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
